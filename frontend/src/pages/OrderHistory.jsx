@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiFetch } from "../utils/api";
+import { apiFetch, API_BASE } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 import { Star } from "lucide-react";
 
@@ -140,7 +140,21 @@ const OrderHistory = () => {
                   {order.items.map((item, index) => (
                     <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                       <div className="flex items-center gap-3 flex-1">
-                        <div className="text-2xl">{item.product?.image || "❓"}</div>
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 overflow-hidden rounded border bg-white flex items-center justify-center">
+                          {item.product?.images?.length > 0 || item.product?.image ? (
+                            <img
+                              src={
+                                item.product?.images?.length > 0
+                                  ? `${API_BASE}${item.product.images[0]}`
+                                  : `${API_BASE}${item.product.image}`
+                              }
+                              alt={item.product?.name || "Product"}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xl">❓</span>
+                          )}
+                        </div>
                         <div className="flex-1">
                           <p className="font-medium">{item.product?.name || "Unknown Product"}</p>
                           <p className="text-sm text-gray-500">Quantity: {item.quantity} × ₹{item.price}</p>
