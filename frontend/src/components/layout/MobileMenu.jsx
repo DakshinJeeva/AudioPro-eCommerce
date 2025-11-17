@@ -76,6 +76,13 @@ const MobileMenu = ({ isOpen, onClose }) => {
               Wishlist
             </Link>
             <Link
+              to="/orders"
+              onClick={onClose}
+              className="block text-base font-medium text-gray-900 hover:text-gray-600 transition"
+            >
+              Orders
+            </Link>
+            <Link
               to="/#categories"
               onClick={(e) => {
                 e.preventDefault();

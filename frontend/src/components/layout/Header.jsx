@@ -53,7 +53,7 @@ const Header = ({ onMenuToggle, onAuthOpen }) => {
 
   return (
     <header className="bg-white/90 backdrop-blur border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto pl-4 pr-2 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <div className="flex items-center">
@@ -115,7 +115,7 @@ const Header = ({ onMenuToggle, onAuthOpen }) => {
           </nav>
 
           {/* Icons */}
-          <div className="flex items-center space-x-4 md:space-x-6">
+          <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6">
             <button 
               onClick={() => setSearchOpen(!searchOpen)}
               className="p-2 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
@@ -141,17 +141,18 @@ const Header = ({ onMenuToggle, onAuthOpen }) => {
             {/* ORDER HISTORY ICON */}
             {user && (
               <>
+                {/* ORDER HISTORY ICON (desktop only, mobile uses sidebar) */}
                 <button 
-                  className="p-2 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
+                  className="hidden lg:inline-flex p-2 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
                   onClick={() => navigate("/orders")}
                   title="Order History"
                 >
                   <Package className="w-5 h-5" />
                 </button>
 
-                {/* WISHLIST ICON */}
+                {/* WISHLIST ICON (desktop only, mobile uses sidebar) */}
                 <button
-                  className="p-2 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black text-gray-800"
+                  className="hidden lg:inline-flex p-2 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black text-gray-800"
                   onClick={() => navigate("/wishlist")}
                   title="Wishlist"
                 >
@@ -162,7 +163,7 @@ const Header = ({ onMenuToggle, onAuthOpen }) => {
 
             {/* CART ICON */}
             <button 
-              className="relative p-2 mr-1 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
+              className="inline-flex relative p-2 mr-1 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
               onClick={() => navigate("/cart")} // Go to cart page
             >
               <ShoppingCart className="w-5 h-5" />

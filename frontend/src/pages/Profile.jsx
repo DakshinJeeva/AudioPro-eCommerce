@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/useAuth";
 import { useNavigate } from "react-router-dom";
 import { User, Mail, LogOut, ShieldCheck } from "lucide-react";
@@ -42,6 +42,14 @@ export default function Profile() {
     }
     setAddresses(profile.addresses || []);
   };
+
+  // Ensure we always have the latest profile data (including addresses) when this page loads
+  useEffect(() => {
+    refreshProfile().catch((e) => {
+      console.error("Failed to refresh profile on mount:", e);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSendCode = async () => {
     if (!phoneNumber) {
@@ -180,15 +188,17 @@ export default function Profile() {
               <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
                 <Mail className="w-5 h-5 text-white" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-500 mb-1">Email Address</p>
-                <p className="text-lg font-semibold text-gray-900">{user.email}</p>
+                <p className="text-sm sm:text-lg font-semibold text-gray-900 break-words">
+                  {user.email}
+                </p>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex flex-col flex-1">
+            <div className="flex flex-col gap-4 p-4 bg-gray-50 rounded-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                <div className="flex flex-col flex-1 gap-2">
                   <span className="text-sm font-medium text-gray-500 mb-1">Phone Number</span>
                   <div className="flex items-center gap-2">
                     <span className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm text-gray-700 select-none">
@@ -204,7 +214,7 @@ export default function Profile() {
                     />
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 sm:gap-2 mt-1 sm:mt-0">
                   {!user.isPhoneVerified && (
                     <button
                       type="button"
@@ -231,7 +241,7 @@ export default function Profile() {
 
               {!user.isPhoneVerified && (
                 <>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <input
                       type="text"
                       value={code}
@@ -243,7 +253,7 @@ export default function Profile() {
                       type="button"
                       onClick={handleVerifyCode}
                       disabled={verifying}
-                      className="px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                       {verifying ? "Verifying..." : "Verify"}
                     </button>
