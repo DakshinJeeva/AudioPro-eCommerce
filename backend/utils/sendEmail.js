@@ -101,7 +101,7 @@ export const sendOrderEmails = async (order) => {
     return;
   }
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const frontendUrl = process.env.FRONTEND_URL || "https://audiopro-cyvq.onrender.com";
   const adminEmail = process.env.SENDGRID_FROM_EMAIL || "xboxdakshin@gmail.com";
 
   const itemsTableRows = order.items
