@@ -63,9 +63,11 @@ function App() {
           element={
             <>
               <Hero />
-              <Features />
+              
               <FeaturedProducts />
+              <Features />
               <ContactSection />
+              
             </>
           } 
         />
@@ -82,8 +84,10 @@ function App() {
       </Routes>
 
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      
       <Footer />
       <AuthModel open={isAuthOpen} onClose={() => setIsAuthOpen(false)}/>
+      
     </AuthProvider>
   );
 }

@@ -196,48 +196,46 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
           <div className="flex-1" />
 
           {/* Price & Add to Cart */}
-          <div className="space-y-3">
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold text-gray-900">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-lg font-bold text-gray-900">
                 ₹{product.price.toLocaleString('en-IN')}
               </p>
+
+              {showActions && product.stock > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddToCart();
+                  }}
+                  disabled={adding}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-900 text-white text-[11px] sm:text-xs font-semibold hover:bg-gray-800 active:scale-95 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {adding ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      Add
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            {showActions && (
-              <>
-                {product.stock === 0 ? (
-                  <button
-                    type="button"
-                    disabled
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-gray-100 text-gray-400 px-6 py-3.5 rounded-xl font-semibold cursor-not-allowed transition-all"
-                  >
-                    Out of Stock
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddToCart();
-                    }}
-                    disabled={adding}
-                    className="w-full bg-gray-900 text-white px-6 py-3.5 rounded-xl font-semibold hover:bg-gray-800 active:scale-95 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg shadow-gray-900/20 hover:shadow-xl hover:shadow-gray-900/30 flex items-center justify-center gap-2"
-                  >
-                    {adding ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart className="w-4 h-4" />
-                        Add to Cart
-                      </>
-                    )}
-                  </button>
-                )}
-              </>
+            {showActions && product.stock === 0 && (
+              <button
+                type="button"
+                disabled
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-gray-100 text-gray-400 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold cursor-not-allowed transition-all"
+              >
+                Out of Stock
+              </button>
             )}
           </div>
         </div>

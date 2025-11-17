@@ -66,7 +66,7 @@ const ContactSection = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 mb-1">
                   Email
                 </p>
-                <p className="font-medium">xbox@gmail.com</p>
+                <p className="font-medium">arudioPro@gmail.com</p>
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 mb-1">

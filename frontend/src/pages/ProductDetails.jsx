@@ -17,6 +17,11 @@ const ProductDetails = () => {
   const [liked, setLiked] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // Scroll to top whenever a new product is opened
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [id]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {

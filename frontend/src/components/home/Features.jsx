@@ -3,7 +3,7 @@ import { ShoppingCart, Search, User, Heart, Menu, X, Star, Truck, Shield, Headph
 
 const Features = () => {
   const features = [
-    { icon: Truck, title: 'Free Shipping', desc: 'On orders over $100' },
+    { icon: Truck, title: 'Free Shipping', desc: 'On orders over 2500 Rs' },
     { icon: Shield, title: '2 Year Warranty', desc: 'Full protection' },
     { icon: Headphones, title: '24/7 Support', desc: 'Dedicated team' }
   ];
