@@ -4,6 +4,13 @@ import bgVideo from '../../utils/3946077-uhd_4096_2160_25fps.mp4';
 import AnimatedNumber from '../common/AnimatedNumber';
 
 const Hero = () => {
+  const scrollToCategories = () => {
+    const el = document.getElementById("categories");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <section id="home" className="relative py-16 md:py-20 overflow-hidden">
       {/* Background Video */}
@@ -33,11 +40,19 @@ const Hero = () => {
             
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-4 mb-12">
-              <button className="bg-black text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition flex items-center gap-2 shadow">
+              <button
+                type="button"
+                onClick={scrollToCategories}
+                className="bg-black text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition flex items-center gap-2 shadow"
+              >
                 <ShoppingCart className="w-5 h-5" />
                 Shop Now
               </button>
-              <button className="bg-white text-black px-8 py-4 rounded-xl border border-gray-300 hover:border-black transition">
+              <button
+                type="button"
+                onClick={scrollToCategories}
+                className="bg-white text-black px-8 py-4 rounded-xl border border-gray-300 hover:border-black transition"
+              >
                 Explore Collection
               </button>
             </div>
