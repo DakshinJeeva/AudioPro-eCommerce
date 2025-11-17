@@ -40,14 +40,21 @@ export const sendVerificationEmail = async (email, verificationToken) => {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #333; margin-bottom: 20px;">Welcome to AudioPro!</h2>
         <p style="color: #666; line-height: 1.6;">Thank you for signing up. Please verify your email address by clicking the button below:</p>
+
         <div style="text-align: center; margin: 30px 0;">
           <a href="${verificationUrl}" 
-             style="display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            style="display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;">
             Verify Email Address
           </a>
         </div>
+
         <p style="color: #666; line-height: 1.6;">Or copy and paste this link into your browser:</p>
-        <p style="color: #666; word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px;">${verificationUrl}</p>
+        <p style="color: #666; word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px;">
+          <a href="${verificationUrl}" style="color:#0066cc; text-decoration:underline;">
+            ${verificationUrl}
+          </a>
+        </p>
+
         <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
           This link will expire in 24 hours. If you didn't create an account, please ignore this email.
         </p>
