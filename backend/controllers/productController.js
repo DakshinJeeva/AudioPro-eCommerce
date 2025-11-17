@@ -1,0 +1,115 @@
+// controllers/productController.js
+import Product from "../models/productModel.js";
+import asyncHandler from "express-async-handler";
+
+export const addProduct = async (req, res) => {
+  try {
+    const { name, category, price, image, images, color, description, stock, featured } = req.body;
+
+    // Basic validation
+    if (!name || !category || !price) {
+      return res.status(400).json({ message: "Please fill all required fields" });
+    }
+
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+
+    let imagesArray = [];
+    if (Array.isArray(images)) {
+      imagesArray = images.filter(Boolean);
+    } else if (typeof images === "string") {
+      imagesArray = images
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    const uploadedUrls = uploadedFiles.map((file) => `/uploads/${file.filename}`);
+
+    // Determine primary image and gallery
+    let primaryImage = image || uploadedUrls[0] || imagesArray[0];
+    const galleryImages = [...uploadedUrls, ...imagesArray];
+
+    if (!primaryImage) {
+      return res.status(400).json({ message: "At least one product image is required" });
+    }
+
+    const isFeatured =
+      featured === true ||
+      featured === "true" ||
+      featured === "on" ||
+      featured === 1 ||
+      featured === "1";
+
+    const product = new Product({
+      name,
+      category,
+      price,
+      image: primaryImage,
+      images: galleryImages,
+      color,
+      description,
+      stock: stock || 0,
+      featured: isFeatured,
+    });
+
+    const createdProduct = await product.save();
+    res.status(201).json(createdProduct);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getProducts = asyncHandler(async (req, res) => {
+  const products = await Product.find({});
+  res.json(products);
+});
+
+export const getProductById = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
+  if (!product) {
+    res.status(404);
+    throw new Error("Product not found");
+  }
+  res.json(product);
+});
+
+// Update product stock (admin only)
+export const updateProductStock = asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const { stock } = req.body;
+
+  if (stock === undefined || stock < 0) {
+    return res.status(400).json({ message: "Stock must be a non-negative number" });
+  }
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res.status(404).json({ message: "Product not found" });
+  }
+
+  product.stock = stock;
+  await product.save();
+
+  res.json(product);
+});
+
+// Get all products with stock info (admin)
+export const getAllProducts = asyncHandler(async (req, res) => {
+  const products = await Product.find({}).sort({ createdAt: -1 });
+  res.json(products);
+});
+
+// Delete product (admin only)
+export const deleteProduct = asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    res.status(404);
+    throw new Error("Product not found");
+  }
+
+  await product.deleteOne();
+
+  res.json({ message: "Product deleted successfully" });
+});
