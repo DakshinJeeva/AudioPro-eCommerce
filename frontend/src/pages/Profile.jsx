@@ -44,7 +44,10 @@ export default function Profile() {
   };
 
   // Ensure we always have the latest profile data (including addresses) when this page loads
+  // and scroll to the top so the user sees the profile content first
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
     refreshProfile().catch((e) => {
       console.error("Failed to refresh profile on mount:", e);
     });
