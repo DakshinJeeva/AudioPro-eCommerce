@@ -26,11 +26,23 @@ export const createOrder = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Cart is empty" });
   }
 
-  // Check stock availability and decrease stock
+  // Helper to safely get productId from a cart item (supports populated docs and ObjectIds)
+  const getCartItemProductId = (item) => {
+    if (!item.product) return null;
+    if (item.product._id) return item.product._id.toString();
+    return item.product.toString();
+  };
+
+  // Check stock availability
   for (const item of cart.items) {
-    const product = await Product.findById(item.product._id);
+    const productId = getCartItemProductId(item);
+    if (!productId) {
+      return res.status(404).json({ message: "A product in your cart no longer exists." });
+    }
+
+    const product = await Product.findById(productId);
     if (!product) {
-      return res.status(404).json({ message: `Product ${item.product.name} not found` });
+      return res.status(404).json({ message: "A product in your cart could not be found." });
     }
     if (product.stock < item.quantity) {
       return res.status(400).json({ 
@@ -41,7 +53,9 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   // Decrease stock for all items
   for (const item of cart.items) {
-    await Product.findByIdAndUpdate(item.product._id, {
+    const productId = getCartItemProductId(item);
+    if (!productId) continue;
+    await Product.findByIdAndUpdate(productId, {
       $inc: { stock: -item.quantity }
     });
   }
@@ -54,10 +68,10 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   // Prepare order items with price snapshot
   const orderItems = cart.items.map(item => ({
-    product: item.product._id,
+    product: getCartItemProductId(item),
     quantity: item.quantity,
-    price: item.product.price,
-  }));
+    price: item.product?.price,
+  })).filter(item => item.product); // filter out any items without a valid product
 
   // Get address from request or user's saved address
   let orderAddress = address;
