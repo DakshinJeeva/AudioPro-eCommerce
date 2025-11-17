@@ -11,7 +11,7 @@ if (sendGridApiKey) {
 }
 
 export const sendVerificationEmail = async (email, verificationToken) => {
-  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${verificationToken}`;
+  const verificationUrl = `${process.env.FRONTEND_URL || 'https://audiopro.onrender.com'}/verify-email/${verificationToken}`;
 
   // If SendGrid is not configured, log the verification URL for development
   if (!sendGridApiKey) {
