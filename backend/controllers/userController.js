@@ -18,6 +18,36 @@ export const registerUser = asyncHandler(async (req, res) => {
 
   const userExists = await User.findOne({ email });
   if (userExists) {
+    // If user exists but email is not verified, resend verification email
+    if (!userExists.isEmailVerified) {
+      const verificationToken = generateVerificationToken();
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(verificationToken)
+        .digest("hex");
+
+      userExists.emailVerificationToken = hashedToken;
+      userExists.emailVerificationExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+      await userExists.save({ validateBeforeSave: false });
+
+      try {
+        await sendVerificationEmail(userExists.email, verificationToken);
+        return res.status(200).json({
+          message: "A verification mail is sent. Please verify your email.",
+          email: userExists.email,
+          verificationToken:
+            process.env.NODE_ENV === "development" ? verificationToken : undefined,
+        });
+      } catch (emailError) {
+        console.error("Error sending verification email:", emailError);
+        res.status(500);
+        throw new Error(
+          "User exists but we couldn't resend the verification email. Please try again later."
+        );
+      }
+    }
+
+    // If email is already verified, block registration
     res.status(400);
     throw new Error("User already exists");
   }
