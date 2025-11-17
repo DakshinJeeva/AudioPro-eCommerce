@@ -22,8 +22,15 @@ export const addToCart = asyncHandler(async (req, res) => {
   let cart = await Cart.findOne({ user: req.user._id }).populate("items.product");
   if (!cart) cart = await Cart.create({ user: req.user._id, items: [] });
 
+  // Helper to safely get product ID from cart item (supports populated docs and raw ObjectIds)
+  const getItemProductId = (item) => {
+    if (!item.product) return null;
+    if (item.product._id) return item.product._id.toString();
+    return item.product.toString();
+  };
+
   // Check current cart quantity for this product
-  const itemIndex = cart.items.findIndex(i => i.product.toString() === productId);
+  const itemIndex = cart.items.findIndex((i) => getItemProductId(i) === productId.toString());
   const currentQuantity = itemIndex > -1 ? cart.items[itemIndex].quantity : 0;
   const newQuantity = itemIndex > -1 ? currentQuantity + requestedQuantity : requestedQuantity;
 
@@ -50,7 +57,13 @@ export const removeFromCart = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-  cart.items = cart.items.filter(i => i.product.toString() !== productId);
+  const getItemProductId = (item) => {
+    if (!item.product) return null;
+    if (item.product._id) return item.product._id.toString();
+    return item.product.toString();
+  };
+
+  cart.items = cart.items.filter((i) => getItemProductId(i) !== productId.toString());
   await cart.save();
   res.json(cart);
 });
@@ -77,7 +90,13 @@ export const updateCartItem = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-  const item = cart.items.find(i => i.product.toString() === productId);
+  const getItemProductId = (item) => {
+    if (!item.product) return null;
+    if (item.product._id) return item.product._id.toString();
+    return item.product.toString();
+  };
+
+  const item = cart.items.find((i) => getItemProductId(i) === productId.toString());
   if (item) item.quantity = quantity;
   await cart.save();
   
