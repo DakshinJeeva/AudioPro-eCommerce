@@ -3,11 +3,12 @@ import { Eye, EyeOff } from "lucide-react";
 import { apiFetch } from "../../utils/api";
 import { useAuth } from "../../context/useAuth";
 
-const AuthModal = ({ open, onClose }) => {
+const AuthModal = ({ open, onClose, onAuthSuccess }) => {
   const [tab, setTab] = useState("signin");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
   const [showForgot, setShowForgot] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
@@ -20,6 +21,7 @@ const handleSubmit = async (e) => {
   e.preventDefault();
   setLoading(true);
   setMessage("");
+  setMessageType("");
 
   try {
     let data;
@@ -50,19 +52,40 @@ const handleSubmit = async (e) => {
     // ✅ Handle different actions
     if (showForgot) {
       setMessage("Password reset link sent to your email!");
+      setMessageType("success");
+      if (onAuthSuccess) {
+        onAuthSuccess("Password reset link sent to your email!", "success");
+      }
     } else if (tab === "signin") {
       if (data?.token && (data.user?.isEmailVerified || data.isEmailVerified)) {
-        login(data.token, data.user || { name: form.email.split("@")[0], email: form.email });
+        login(
+          data.token,
+          data.user || { name: form.email.split("@")[0], email: form.email }
+        );
         setMessage("Logged in successfully!");
+        setMessageType("success");
+        if (onAuthSuccess) {
+          onAuthSuccess("Logged in successfully!", "success");
+        }
         onClose();
       } else {
-        setMessage(data?.message || "Please verify your email before logging in.");
+        const msg = data?.message || "Please verify your email before logging in.";
+        setMessage(msg);
+        setMessageType("error");
+        if (onAuthSuccess) {
+          onAuthSuccess(msg, "error");
+        }
       }
     } else {
       setMessage("Account created successfully! Check your email to verify.");
+      setMessageType("success");
+      if (onAuthSuccess) {
+        onAuthSuccess("Account created successfully! Check your email to verify.", "success");
+      }
     }
   } catch (err) {
     setMessage(err.message || "Something went wrong");
+    setMessageType("error");
   } finally {
     setLoading(false);
   }
@@ -198,7 +221,15 @@ const handleSubmit = async (e) => {
 
           {/* Message */}
           {message && (
-            <p className="text-xs text-center text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+            <p
+              className={`text-xs text-center rounded-xl px-3 py-2 border bg-gray-50 ${
+                messageType === "success"
+                  ? "text-green-700 border-green-200"
+                  : messageType === "error"
+                  ? "text-red-700 border-red-200"
+                  : "text-gray-700 border-gray-200"
+              }`}
+            >
               {message}
             </p>
           )}

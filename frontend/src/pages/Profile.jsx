@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { User, Mail, LogOut, ShieldCheck } from "lucide-react";
 import { apiFetch } from "../utils/api";
 
-export default function Profile() {
+export default function Profile({ onLogoutSuccess }) {
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -396,6 +396,9 @@ export default function Profile() {
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-all duration-200 shadow-md hover:shadow-lg"
               onClick={() => {
                 logout();
+                if (onLogoutSuccess) {
+                  onLogoutSuccess("Logged out successfully", "success");
+                }
                 navigate("/");
               }}
             >

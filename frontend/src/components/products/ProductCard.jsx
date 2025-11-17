@@ -13,6 +13,8 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
   const [hasUserToggled, setHasUserToggled] = useState(false);
 
   const [adding, setAdding] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusType, setStatusType] = useState("");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -25,12 +27,14 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
 
   const handleAddToCart = async () => {
     if (!user) {
-      alert("Please sign in to add items to cart");
+      setStatusMessage("Please sign in to add items to cart");
+      setStatusType("error");
       return;
     }
 
     if (product.stock === 0) {
-      alert("This product is out of stock");
+      setStatusMessage("This product is out of stock");
+      setStatusType("error");
       return;
     }
 
@@ -43,10 +47,12 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
         body: JSON.stringify({ productId: product._id, quantity: 1 }),
       });
       console.log("Cart updated:", data);
-      alert("Added to cart!");
+      setStatusMessage("Added to cart!");
+      setStatusType("success");
     } catch (err) {
       console.error(err);
-      alert(err.message || "Failed to add to cart");
+      setStatusMessage(err.message || "Failed to add to cart");
+      setStatusType("error");
     }
     setAdding(false);
   };
@@ -55,9 +61,11 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
     e.stopPropagation();
 
     if (!user) {
-      alert("Please sign in to use wishlist");
+      setStatusMessage("Please sign in to use wishlist");
+      setStatusType("error");
       return;
     }
+
     setHasUserToggled(true);
 
     const nextLiked = !liked;
@@ -79,9 +87,12 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
       if (onWishlistChange) {
         onWishlistChange(product._id, nextLiked);
       }
+      setStatusMessage(nextLiked ? "Added to wishlist!" : "Removed from wishlist!");
+      setStatusType("success");
     } catch (err) {
       setLiked(!nextLiked);
-      alert(err.message || "Failed to update wishlist");
+      setStatusMessage(err.message || "Failed to update wishlist");
+      setStatusType("error");
     }
   };
 
@@ -226,6 +237,20 @@ const ProductCard = ({ product, showActions = true, initialLiked = false, onWish
                 </button>
               )}
             </div>
+
+            {statusMessage && (
+              <p
+                className={`text-xs mt-1 ${
+                  statusType === "success"
+                    ? "text-green-600"
+                    : statusType === "error"
+                    ? "text-red-600"
+                    : "text-gray-600"
+                }`}
+              >
+                {statusMessage}
+              </p>
+            )}
 
             {showActions && product.stock === 0 && (
               <button

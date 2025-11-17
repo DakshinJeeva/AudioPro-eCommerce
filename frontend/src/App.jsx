@@ -46,6 +46,11 @@ const ScrollToHash = () => {
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false); 
+  const [authStatus, setAuthStatus] = useState({ message: "", type: "" });
+
+  const handleAuthStatus = (message, type = "success") => {
+    setAuthStatus({ message, type });
+  };
 
   return (
     <AuthProvider>
@@ -53,6 +58,20 @@ function App() {
         onMenuToggle={ () => setIsMenuOpen(!isMenuOpen)}
         onAuthOpen={() => setIsAuthOpen(!isAuthOpen)} 
       />
+
+      {authStatus.message && (
+        <div
+          className={`px-4 py-2 text-sm text-center ${
+            authStatus.type === "success"
+              ? "bg-green-50 text-green-800 border-b border-green-200"
+              : authStatus.type === "error"
+              ? "bg-red-50 text-red-800 border-b border-red-200"
+              : "bg-gray-50 text-gray-800 border-b border-gray-200"
+          }`}
+        >
+          {authStatus.message}
+        </div>
+      )}
 
       {/* Smooth-scroll handler for #home, #products, #categories on the home page */}
       <ScrollToHash />
@@ -78,7 +97,7 @@ function App() {
         <Route path="/products/:id" element={<ProductDetails />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile" element={<Profile onLogoutSuccess={handleAuthStatus} />} />
         <Route path="/contact" element={<Contact />} />
 
       </Routes>
@@ -86,7 +105,11 @@ function App() {
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       
       <Footer />
-      <AuthModel open={isAuthOpen} onClose={() => setIsAuthOpen(false)}/>
+      <AuthModel
+        open={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={handleAuthStatus}
+      />
       
     </AuthProvider>
   );
