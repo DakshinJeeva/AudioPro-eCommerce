@@ -123,6 +123,11 @@ const CartPage = () => {
 
   const addresses = user?.addresses || [];
 
+  // Scroll to top when cart page is opened
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const fetchCart = async () => {
     if (!user) return;
     setLoading(true);
