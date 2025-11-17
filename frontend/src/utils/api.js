@@ -1,5 +1,5 @@
 // frontend/src/utils/api.js
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://audiopro.onrender.com';
 
 export async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("token");
