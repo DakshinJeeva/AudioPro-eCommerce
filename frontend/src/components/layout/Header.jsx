@@ -162,12 +162,12 @@ const Header = ({ onMenuToggle, onAuthOpen }) => {
 
             {/* CART ICON */}
             <button 
-              className="relative p-2 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
+              className="relative p-2 mr-1 rounded-lg hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-black"
               onClick={() => navigate("/cart")} // Go to cart page
             >
               <ShoppingCart className="w-5 h-5" />
               {cartCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-black text-white text-xs w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                <span className="absolute -top-2 right-0 bg-black text-white text-xs w-5 h-5 rounded-full flex items-center justify-center shadow-md">
                   {cartCount}
                 </span>
               )}
