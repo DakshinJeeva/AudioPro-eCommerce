@@ -3,6 +3,11 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 
+// Simple mobile detection
+const isMobileDevice = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+};
+
 const VerifyEmail = () => {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -10,6 +15,8 @@ const VerifyEmail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     const verifyEmailToken = async () => {
@@ -26,18 +33,26 @@ const VerifyEmail = () => {
 
         setSuccess(true);
         
-        // Auto login after verification
+        // Auto login after verification (Magic Link)
         if (data.token) {
           localStorage.setItem("token", data.token);
           login(data.token, { 
             name: data.user.name, 
             email: data.user.email 
           });
+          setIsLoggedIn(true);
           
-          // Redirect to home after 3 seconds
-          setTimeout(() => {
-            navigate("/");
-          }, 3000);
+          // Countdown and redirect
+          const countdownInterval = setInterval(() => {
+            setCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(countdownInterval);
+                navigate("/");
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
         }
       } catch (err) {
         setError(err.message || "Failed to verify email");
@@ -76,10 +91,38 @@ const VerifyEmail = () => {
                   />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Email Verified!</h2>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {isLoggedIn ? "✨ Magic Link Success!" : "Email Verified!"}
+              </h2>
               <p className="mt-2 text-gray-600">
-                Your email has been successfully verified. You will be redirected to the home page shortly.
+                {isLoggedIn ? (
+                  <>
+                    Your email has been verified and you're now logged in! 
+                    <br />
+                    <span className="font-medium text-green-600">
+                      Redirecting in {countdown} seconds...
+                    </span>
+                  </>
+                ) : (
+                  "Your email has been successfully verified."
+                )}
               </p>
+              
+              {isLoggedIn && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-700">
+                    🎉 <strong>Magic Link Login Complete!</strong>
+                    <br />
+                    {isMobileDevice() ? (
+                      "📱 You're now logged in on this mobile device!"
+                    ) : (
+                      "💻 You're now logged in on this device!"
+                    )}
+                    <br />
+                    <span className="text-xs">Access all features instantly - no password needed!</span>
+                  </p>
+                </div>
+              )}
               <Link
                 to="/"
                 className="mt-4 inline-block text-blue-600 hover:text-blue-800 underline"

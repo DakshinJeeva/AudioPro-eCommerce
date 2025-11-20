@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Package, ShoppingCart, Heart } from "lucide-react";
+import { Package, ShoppingCart, Heart, BarChart3 } from "lucide-react";
 import { apiFetch, API_BASE } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 
@@ -100,6 +100,12 @@ const ProductDetails = () => {
       setLiked(!nextLiked);
       alert(err.message || "Failed to update wishlist");
     }
+  };
+
+  const handleCompareProduct = () => {
+    if (!product) return;
+    // Navigate to comparison page with the current product as the base product
+    navigate(`/compare?product=${product._id}`);
   };
 
   if (loading) {
@@ -237,6 +243,15 @@ const ProductDetails = () => {
                     Add to Cart
                   </>
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCompareProduct}
+                className="w-full sm:w-auto border border-blue-300 bg-blue-50 rounded-md px-4 py-3 flex items-center justify-center gap-2 text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Compare</span>
               </button>
 
               <button
