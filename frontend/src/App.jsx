@@ -22,6 +22,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import ResetPassword from "./pages/ResetPassword";
 import Profile from "./pages/Profile";
 import ProductDetails from "./pages/ProductDetails";
+import ProductComparison from "./pages/ProductComparison";
 
 // Smoothly scroll to a section when the URL hash changes (e.g. /#products)
 const ScrollToHash = () => {
@@ -50,6 +51,13 @@ function App() {
 
   const handleAuthStatus = (message, type = "success") => {
     setAuthStatus({ message, type });
+
+    // Auto-dismiss success messages after 3 seconds
+    if (type === "success") {
+      setTimeout(() => {
+        setAuthStatus({ message: "", type: "" });
+      }, 3000);
+    }
   };
 
   return (
@@ -61,7 +69,7 @@ function App() {
 
       {authStatus.message && (
         <div
-          className={`px-4 py-2 text-sm text-center ${
+          className={`px-4 py-3 text-sm flex items-center justify-between ${
             authStatus.type === "success"
               ? "bg-green-50 text-green-800 border-b border-green-200"
               : authStatus.type === "error"
@@ -69,7 +77,22 @@ function App() {
               : "bg-gray-50 text-gray-800 border-b border-gray-200"
           }`}
         >
-          {authStatus.message}
+          <div className="flex items-center justify-center flex-1">
+            {authStatus.type === "success" && (
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            )}
+            {authStatus.message}
+          </div>
+          <button
+            onClick={() => setAuthStatus({ message: "", type: "" })}
+            className="ml-4 text-current hover:opacity-70 focus:outline-none"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
         </div>
       )}
 
@@ -95,6 +118,7 @@ function App() {
         <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/products/:id" element={<ProductDetails />} />
+        <Route path="/compare" element={<ProductComparison />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/profile" element={<Profile onLogoutSuccess={handleAuthStatus} />} />
