@@ -92,7 +92,7 @@ const VerifyEmail = () => {
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-gray-900">
-                {isLoggedIn ? "✨ Magic Link Success!" : "Email Verified!"}
+                {isLoggedIn ? "Success!" : "Email Verified!"}
               </h2>
               <p className="mt-2 text-gray-600">
                 {isLoggedIn ? (
@@ -111,7 +111,7 @@ const VerifyEmail = () => {
               {isLoggedIn && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-700">
-                    🎉 <strong>Magic Link Login Complete!</strong>
+                    🎉 <strong>Login Complete!</strong>
                     <br />
                     {isMobileDevice() ? (
                       "📱 You're now logged in on this mobile device!"

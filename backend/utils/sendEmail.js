@@ -35,14 +35,13 @@ export const sendVerificationEmail = async (email, verificationToken) => {
   const msg = {
     to: email,
     from: process.env.SENDGRID_FROM_EMAIL || 'noreply@example.com', // Change this to your verified sender
-    subject: '✨ Magic Link - Verify & Login Instantly - AudioPro',
+    subject: 'Verify & Login Instantly - AudioPro',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #333; margin-bottom: 20px;">Welcome to AudioPro!</h2>
-        <p style="color: #666; line-height: 1.6;">Thank you for signing up! Click the magic link below to verify your email and log in instantly:</p>
+        <p style="color: #666; line-height: 1.6;">Thank you for signing up! Click the link below to verify your email and log in instantly:</p>
 
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px; margin: 30px 0; text-align: center;">
-          <h3 style="color: white; margin: 0 0 10px 0; font-size: 18px;">✨ Magic Link Login</h3>
           <p style="color: #f0f0f0; margin: 0 0 15px 0; font-size: 14px;">One click to verify & login on any device</p>
           <a href="${verificationUrl}"
             target="_blank"
@@ -52,15 +51,6 @@ export const sendVerificationEmail = async (email, verificationToken) => {
           </a>
         </div>
 
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
-          <h4 style="color: #333; margin: 0 0 10px 0; font-size: 16px;">🎯 How Magic Link Works:</h4>
-          <ul style="color: #666; margin: 0; padding-left: 20px; line-height: 1.6;">
-            <li>Click the link on <strong>any device</strong> (mobile, tablet, laptop)</li>
-            <li>Your email gets verified automatically</li>
-            <li>You're instantly logged in on that device</li>
-            <li>No need to remember passwords!</li>
-          </ul>
-        </div>
 
         <p style="color: #666; line-height: 1.6;">Or copy and paste this link into your browser:</p>
         <p style="color: #666; word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px;">
@@ -75,7 +65,7 @@ export const sendVerificationEmail = async (email, verificationToken) => {
         </p>
 
         <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-          This magic link will expire in 24 hours. If you didn't create an account, please ignore this email.
+          This` link will expire in 24 hours. If you didn't create an account, please ignore this email.
         </p>
       </div>
     `,
