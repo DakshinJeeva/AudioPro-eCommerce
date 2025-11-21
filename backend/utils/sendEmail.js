@@ -65,7 +65,7 @@ export const sendVerificationEmail = async (email, verificationToken) => {
         </p>
 
         <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-          This` link will expire in 24 hours. If you didn't create an account, please ignore this email.
+          This link will expire in 24 hours. If you didn't create an account, please ignore this email.
         </p>
       </div>
     `,
@@ -86,23 +86,71 @@ export const sendVerificationEmail = async (email, verificationToken) => {
 };
 
 export const sendPasswordResetEmail = async (email, resetToken) => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+  const resetUrl = `${process.env.FRONTEND_URL || 'https://audiopro.onrender.com'}/reset-password/${resetToken}`;
+
+  // If SendGrid is not configured, log the reset URL for development
+  if (!sendGridApiKey) {
+    console.log('='.repeat(80));
+    console.log('PASSWORD RESET (Development Mode - SendGrid not configured)');
+    console.log('='.repeat(80));
+    console.log(`To: ${email}`);
+    console.log(`Reset URL: ${resetUrl}`);
+    console.log(`Reset Token: ${resetToken}`);
+    console.log('='.repeat(80));
+    console.log('NOTE: In production, configure SENDGRID_API_KEY in your .env file');
+    console.log('='.repeat(80));
+    // Don't throw error in development - allow password reset to continue
+    if (process.env.NODE_ENV === 'development') {
+      return true;
+    } else {
+      throw new Error('Email service not configured. Please set SENDGRID_API_KEY in environment variables.');
+    }
+  }
+
   const msg = {
     to: email,
-    from: process.env.SENDGRID_FROM_EMAIL,
+    from: process.env.SENDGRID_FROM_EMAIL || 'noreply@example.com',
     subject: "Reset Your Password - AudioPro",
     html: `
-      <h2>Password Reset Requested</h2>
-      <p>Click the link below to reset your password. This link expires in 10 minutes:</p>
-      <a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:4px;">
-        Reset Password
-      </a>
-      <p>If you didn’t request this, you can ignore this email.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #333; margin-bottom: 20px;">Password Reset Requested</h2>
+        <p style="color: #666; line-height: 1.6;">Click the link below to reset your password. This link expires in 10 minutes:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetUrl}" 
+             target="_blank"
+             rel="noopener noreferrer"
+             style="display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Reset Password
+          </a>
+        </div>
+        
+        <p style="color: #666; line-height: 1.6;">Or copy and paste this link into your browser:</p>
+        <p style="color: #666; word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px;">
+          <a href="${resetUrl}" target="_blank" rel="noopener noreferrer" style="color:#0066cc; text-decoration:underline;">
+            ${resetUrl}
+          </a>
+        </p>
+        
+        <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+          If you didn't request this password reset, you can safely ignore this email.
+        </p>
+      </div>
     `,
+    text: `Reset your AudioPro password by visiting: ${resetUrl}`,
   };
 
-  await sgMail.send(msg);
-  console.log(`✅ Password reset email sent to ${email}`);
+  try {
+    await sgMail.send(msg);
+    console.log(`✅ Password reset email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending password reset email:', error);
+    if (error.response) {
+      console.error('SendGrid Error Response:', error.response.body);
+    }
+    throw error;
+  }
 };
 
 // Send order confirmation to customer and notification to admin
