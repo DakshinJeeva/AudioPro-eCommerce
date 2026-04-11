@@ -1,5 +1,10 @@
 // frontend/src/utils/api.js
-export const API_BASE = import.meta.env.VITE_API_URL;
+// When running in Docker, VITE_API_URL is an internal hostname (e.g. http://backend:5000)
+// that the browser cannot resolve. We use relative URLs instead so Vite's proxy handles
+// the routing. Falls back to the env value for non-Docker local dev without proxy.
+const rawApiUrl = import.meta.env.VITE_API_URL || "";
+export const API_BASE = rawApiUrl.startsWith("http://backend") ? "" : rawApiUrl;
+
 
 export async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("token");
