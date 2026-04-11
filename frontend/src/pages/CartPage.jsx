@@ -14,8 +14,6 @@ import {
 // Load Stripe with your publishable key
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_KEY);
 
-console.log("🔑 Stripe Publishable Key:", import.meta.env.VITE_STRIPE_KEY);
-
 // Checkout Form
 const CheckoutForm = ({ amount, address, onSuccess }) => {
   const stripe = useStripe();
@@ -142,7 +140,7 @@ const CartPage = () => {
     }
     setLoading(false);
   };
-  
+
   useEffect(() => {
     fetchCart();
   }, [user]);
