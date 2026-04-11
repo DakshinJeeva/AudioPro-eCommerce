@@ -62,9 +62,18 @@ const FeaturedProducts = () => {
     const fetchProducts = async () => {
       try {
         const data = await apiFetch("/api/products");
-        setProducts(data);
+        // Guard: ensure we always store a flat array
+        if (Array.isArray(data)) {
+          setProducts(data);
+        } else if (data && Array.isArray(data.products)) {
+          setProducts(data.products);
+        } else {
+          console.warn("Unexpected products response shape:", data);
+          setProducts([]);
+        }
       } catch (err) {
         console.error("Failed to fetch products:", err);
+        setProducts([]);
       }
       setLoading(false);
     };
@@ -140,7 +149,7 @@ const FeaturedProducts = () => {
     >
       {/* Subtle Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-[0.02] pointer-events-none"></div>
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative flex-1 flex flex-col">
         {/* Header Section */}
         <div className="text-center py-8">
@@ -149,12 +158,12 @@ const FeaturedProducts = () => {
             <TrendingUp className="w-4 h-4" />
             Trending Now
           </div>
-          
+
           {/* Title */}
           <h2 className="text-4xl lg:text-5xl font-bold mb-3 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent leading-tight">
             Featured Products
           </h2>
-          
+
           {/* Subtitle */}
           <p className="text-gray-600 text-base max-w-2xl mx-auto leading-relaxed">
             Discover our carefully curated collection of premium audio equipment
@@ -244,7 +253,7 @@ const FeaturedProducts = () => {
       <div className="absolute top-20 left-10 w-72 h-72 bg-blue-100 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
       <div className="absolute bottom-20 right-10 w-72 h-72 bg-purple-100 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(-50%) translateX(0) rotate(0deg); }
           50% { transform: translateY(-50%) translateX(10px) rotate(5deg); }
