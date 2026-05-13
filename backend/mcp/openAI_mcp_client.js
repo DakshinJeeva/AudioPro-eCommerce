@@ -52,7 +52,6 @@ router.post(
     let fullResponse = "";
     let toolCall = null;
 
-    // 🔹 Read stream
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
 
