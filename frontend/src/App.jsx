@@ -11,6 +11,7 @@ import Footer from './components/layout/Footer';
 import Newsletter from './components/home/Newsletter';
 import FeaturedProducts from './components/home/FeaturedProducts';
 import ContactSection from "./components/home/ContactSection";
+import ChatWidget from "./components/common/ChatWidget";
 import Contact from "./pages/Contact";
 import MobileMenu from "./components/layout/MobileMenu";
 import { AuthProvider } from "./context/useAuth";
@@ -128,6 +129,7 @@ function App() {
 
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       
+      <ChatWidget />
       <Footer />
       <AuthModel
         open={isAuthOpen}

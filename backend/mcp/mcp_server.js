@@ -1,7 +1,20 @@
+import dotenv from "dotenv";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import mongoose from "mongoose";
+// 👇 IMPORTANT: import schemas
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema
+} from "@modelcontextprotocol/sdk/types.js";
+
 import { addToCartService } from "../services/cartService.js";
 
+// ✅ Load environment variables
+dotenv.config();
+
+
+await mongoose.connect(process.env.MONGO_URI);
 const server = new Server(
   {
     name: "mern-ecommerce-mcp",
@@ -14,38 +27,69 @@ const server = new Server(
   }
 );
 
-server.tool(
-  "add_to_cart",
-  {
-    productId: { type: "string" },
-    quantity: { type: "number" }
-  },
-  async ({ productId, quantity }, context) => {
+// 🔹 List tools
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: "add_to_cart",
+        description: "Add product to cart",
+        inputSchema: {
+          type: "object",
+          properties: {
+            productId: { type: "string" },
+            quantity: { type: "number" }
+          },
+          required: ["productId"]
+        }
+      }
+    ]
+  };
+});
+
+// 🔹 Call tool
+server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  const { name, arguments: args } = req.params;
+
+  if (name === "add_to_cart") {
     try {
-      const userId = context.userId;
+      const { productId, quantity } = args;
+
+      const userId = req?.context?.metadata?.userId;
+
+      if (!userId) throw new Error("User not authenticated");
 
       await addToCartService({
         userId,
         productId,
-        quantity
+        quantity: quantity || 1
       });
 
       return {
-        content: [{ type: "text", text: "Added to cart" }]
+        content: [
+          {
+            type: "text",
+            text: "Added to cart successfully"
+          }
+        ]
       };
     } catch (err) {
       return {
-        content: [{ type: "text", text: err.message }]
+        content: [
+          {
+            type: "text",
+            text: err.message
+          }
+        ]
       };
     }
   }
-);
 
-async function start() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  throw new Error("Unknown tool");
+});
 
-  console.log("MCP Server running...");
-}
+// 🔹 Start server
+const transport = new StdioServerTransport();
+await server.connect(transport);
 
-start();
+console.log("✅ MCP Server running");

@@ -1,35 +1,42 @@
 import express from "express";
 import asyncHandler from "express-async-handler";
 import { OpenRouter } from "@openrouter/sdk";
-import { ClientSession } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { protect } from "../middleware/authMiddleware.js";
+
+
 
 const router = express.Router();
 
-// 🔹 OpenRouter setup
 const openrouter = new OpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY
 });
 
-// 🔹 Create MCP session (start once)
-const transport = new StdioClientTransport({
-  command: "node",
-  args: ["mcp_server.js"]
-});
+let client;
 
-const session = new ClientSession(transport);
-await session.connect();
+(async () => {
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: ["mcp/mcp_server.js"]
+  });
 
-// 🔹 MAIN AI API
+  client = new Client({
+    name: "audiopro-client",
+    version: "1.0.0"
+  });
+
+  await client.connect(transport);
+  console.log("✅ MCP connected");
+})();
+
 router.post(
-  "/chat",
+  "/",
+  protect,
   asyncHandler(async (req, res) => {
     const userMessage = req.body.message;
     const userId = req.user._id;
-
-    // 🔹 Get MCP tools
-    const mcpTools = await session.listTools();
-
+    const mcpTools = await client.listTools();
     const tools = mcpTools.tools.map((t) => ({
       type: "function",
       function: {
@@ -38,41 +45,44 @@ router.post(
         parameters: t.inputSchema
       }
     }));
+    console.log("Available MCP tools:", tools);
 
-    // 🔹 Call OpenRouter
     const stream = await openrouter.chat.send({
-      model: "openai/gpt-oss-120b:free",
-      messages: [
-        { role: "user", content: userMessage }
-      ],
-      tools,
+      chatRequest: {
+        model: "openai/gpt-oss-120b:free",
+        messages: [
+          {
+            role: "system",
+            content: `
+    You are an AI shopping assistant.
+    `
+          },
+          { role: "user", content: userMessage }
+        ],
+        tools
+      },
       stream: true
     });
-
+    console.log("stream:", stream);
     let fullResponse = "";
     let toolCall = null;
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta;
+    const message = stream.choices[0]?.message;
+    console.log("FULL MESSAGE:", JSON.stringify(message, null, 2));
 
-      if (delta?.content) {
-        fullResponse += delta.content;
-      }
+    if (message?.content) {
+      fullResponse = message.content;
+    }
 
-      if (delta?.tool_calls) {
-        toolCall = delta.tool_calls[0];
-      }
+    if (message?.toolCalls) {
+      toolCall = message.toolCalls[0];
     }
 
     if (toolCall) {
       const toolName = toolCall.function.name;
       const args = JSON.parse(toolCall.function.arguments);
-
-      const result = await session.callTool(
-        toolName,
-        args,
-        { userId }
-      );
+      const result = await client.callTool(toolName, args, { userId });
+          
 
       return res.json({
         type: "tool",
@@ -80,6 +90,8 @@ router.post(
         result
       });
     }
+
+    console.log("Tool call detected:", toolCall);
 
     return res.json({
       type: "text",
