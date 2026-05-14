@@ -12,7 +12,7 @@ import ratingRoutes from "./routes/ratingRoutes.js";
 import passwordRoutes from "./routes/passwordRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
-
+import chat from "./mcp/openAI_mcp_client.js";
 import cors from "cors";
 
 // ✅ Load environment variables first
@@ -37,6 +37,7 @@ app.use("/api/ratings", ratingRoutes);
 app.use("/api/password", passwordRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/chat", chat);
 
 app.get("/", (req, res) => res.send("API is running"));
 
