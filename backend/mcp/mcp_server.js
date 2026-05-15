@@ -53,9 +53,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   if (name === "add_to_cart") {
     try {
-      const { productId, quantity } = args;
-
-      const userId = req?.context?.metadata?.userId;
+      // userId is injected into args by the client (stdio has no metadata passthrough)
+      const { productId, quantity, userId } = args;
 
       if (!userId) throw new Error("User not authenticated");
 

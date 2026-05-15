@@ -9,6 +9,39 @@ import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+/**
+ * Safely parses tool call arguments from the LLM, which may be truncated
+ * (e.g., missing closing braces/brackets) due to streaming or model quirks.
+ */
+function safeParseToolArgs(raw) {
+  if (!raw || typeof raw !== "string") return {};
+  let str = raw.trim();
+
+  // Count unmatched braces/brackets and close them
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escape = false;
+
+  for (const ch of str) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") openBraces++;
+    else if (ch === "}") openBraces--;
+    else if (ch === "[") openBrackets++;
+    else if (ch === "]") openBrackets--;
+  }
+
+  // Append missing closing characters
+  str += "]".repeat(Math.max(0, openBrackets));
+  str += "}".repeat(Math.max(0, openBraces));
+
+  return JSON.parse(str);
+}
+
+
 const openrouter = new OpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY
 });
@@ -80,15 +113,42 @@ router.post(
 
     if (toolCall) {
       const toolName = toolCall.function.name;
-      const args = JSON.parse(toolCall.function.arguments);
-      const result = await client.callTool(toolName, args, { userId });
-          
+      // Inject userId into args so the MCP server can access it
+      // (stdio transport has no metadata passthrough)
+      const args = {
+        ...safeParseToolArgs(toolCall.function.arguments),
+        userId: userId.toString()
+      };
 
-      return res.json({
-        type: "tool",
-        tool: toolName,
-        result
-      });
+      console.log(`Calling MCP tool: ${toolName} with args:`, args);
+
+      try {
+        // MCP SDK v1.x: callTool(params, resultSchema?, options?)
+        // 2nd arg is a Zod schema — pass undefined to skip it, use 3rd arg for options
+        const resultPromise = client.callTool(
+          { name: toolName, arguments: args },
+          undefined,
+          { timeout: 20000 }
+        );
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("MCP tool call timed out")), 20000)
+        );
+
+        const result = await Promise.race([resultPromise, timeoutPromise]);
+
+        return res.json({
+          type: "tool",
+          tool: toolName,
+          result
+        });
+      } catch (err) {
+        console.error("Error calling MCP tool:", err && err.message ? err.message : err);
+        return res.status(504).json({
+          type: "error",
+          message: `MCP tool error: ${err.message || err}`
+        });
+      }
     }
 
     console.log("Tool call detected:", toolCall);

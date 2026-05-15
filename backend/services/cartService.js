@@ -1,3 +1,6 @@
+import Cart from "../models/cartModel.js";
+import Product from "../models/productModel.js";
+
 export const addToCartService = async ({ userId, productId, quantity = 1 }) => {
   const product = await Product.findById(productId);
   if (!product) throw new Error("Product not found");
