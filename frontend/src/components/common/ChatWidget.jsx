@@ -32,8 +32,8 @@ export default function ChatWidget() {
       if (data.type === "text") {
         setMessages((m) => [...m, { sender: "assistant", text: data.message }]);
       } else if (data.type === "tool") {
-        const resultText = JSON.stringify(data.result || data, null, 2);
-        setMessages((m) => [...m, { sender: "assistant", text: `Tool: ${data.tool} \n${resultText}` }]);
+        const resultText = data.result?.content?.[0]?.text ?? JSON.stringify(data.result, null, 2);
+        setMessages((m) => [...m, { sender: "assistant", text: resultText }]);
       } else {
         setMessages((m) => [...m, { sender: "assistant", text: JSON.stringify(data) }]);
       }
