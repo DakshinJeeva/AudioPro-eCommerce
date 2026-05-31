@@ -1,0 +1,6 @@
+# Minikube and system binaries
+minikube-linux-amd64
+minikube
+*.exe
+*.deb
+*.rpm
