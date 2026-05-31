@@ -1,0 +1,13 @@
+# Never copy node_modules into the image
+node_modules/
+
+# Git
+.git
+.gitignore
+
+# Spring Boot (Java backend - separate project)
+spring-backend/
+
+# Dev logs
+*.log
+npm-debug.log*
