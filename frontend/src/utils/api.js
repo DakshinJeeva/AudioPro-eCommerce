@@ -1,21 +1,21 @@
 // frontend/src/utils/api.js
-// When running in Docker, VITE_API_URL is an internal hostname (e.g. http://backend:5000)
-// that the browser cannot resolve. We use relative URLs instead so Vite's proxy handles
-// the routing. Falls back to the env value for non-Docker local dev without proxy.
-const rawApiUrl = import.meta.env.VITE_API_URL || "";
-export const API_BASE = rawApiUrl.startsWith("http://backend") ? "" : rawApiUrl;
-
+//
+// All requests use RELATIVE paths (e.g. "/api/users/login").
+// Vite's dev-server proxy (vite.config.js) routes each /api/* prefix
+// to the correct microservice port.  In production, an Nginx reverse-proxy
+// or API Gateway does the same job.
 
 export async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("token");
   const isFormData = options.body instanceof FormData;
+
   const headers = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(path, {        // ← always relative, no base URL needed
     ...options,
     headers,
   });
@@ -39,3 +39,7 @@ export async function apiFetch(path, options = {}) {
 
   return data;
 }
+
+// Kept for any component that still destructures API_BASE (e.g. raw fetch calls).
+// Empty string = relative URL, proxy takes over.
+export const API_BASE = "";
