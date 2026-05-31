@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 02-pvc.yaml
+# PersistentVolumeClaim for the product image upload directory.
+# Mirrors the "uploads_data" named volume in docker-compose.yaml.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: audiopro
+  labels:
+    app: product-service
+    project: audiopro-ecommerce
+spec:
+  accessModes:
+    - ReadWriteOnce   # One pod writer at a time (product-service only writes)
+  resources:
+    requests:
+      storage: 2Gi
+  # storageClassName: standard   # Uncomment & change for cloud providers
+  #   GKE: standard / premium-rwo
+  #   EKS: gp2 / gp3
+  #   AKS: default / managed-premium

@@ -1,0 +1,154 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 08-ingress.yaml
+# NGINX Ingress Controller rules — the single front door of the cluster.
+#
+# Traffic routing:
+#   /api/users*    → user-service:5001
+#   /api/password* → user-service:5001
+#   /api/contact*  → user-service:5001
+#   /api/products* → product-service:5002
+#   /api/ratings*  → product-service:5002
+#   /api/wishlist* → product-service:5002
+#   /uploads/*     → product-service:5002
+#   /api/orders*   → order-service:5003
+#   /api/cart*     → order-service:5003
+#   /api/payment*  → order-service:5003
+#   /api/chat*     → mcp-service:5004
+#   /              → frontend:5173  (catch-all)
+#
+# PREREQUISITES:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
+#   (or use Helm: helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx)
+#
+# LOCAL TESTING (minikube):
+#   minikube addons enable ingress
+#   minikube tunnel   (keep running)
+#   Add to /etc/hosts:  127.0.0.1  audiopro.local
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: audiopro-ingress
+  namespace: audiopro
+  labels:
+    project: audiopro-ecommerce
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"        # Allow image uploads
+
+    # ── WebSocket support for Vite HMR ───────────────────────────────────────
+    # proxy-http-version 1.1 is required for the HTTP Upgrade handshake.
+    # The Upgrade + Connection headers are injected globally via the
+    # ingress-nginx ConfigMap in 09-nginx-configmap.yaml (configuration-snippet
+    # is disabled in this cluster, so we use the ConfigMap approach instead).
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"    # 1 h — keeps WS alive
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+    # Uncomment for TLS with cert-manager:
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  # ── TLS (uncomment when you have a real domain + cert-manager) ───────────
+  # tls:
+  #   - hosts:
+  #       - audiopro.yourdomain.com
+  #     secretName: audiopro-tls
+  rules:
+    - host: audiopro.local   # Change to your domain (e.g. audiopro.yourdomain.com)
+      http:
+        paths:
+          # ── user-service (:5001) ──────────────────────────────────────────
+          - path: /api/users(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 5001
+          - path: /api/password(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 5001
+          - path: /api/contact(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 5001
+
+          # ── product-service (:5002) ───────────────────────────────────────
+          - path: /api/products(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 5002
+          - path: /api/ratings(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 5002
+          - path: /api/wishlist(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 5002
+          - path: /uploads(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 5002
+
+          # ── order-service (:5003) ─────────────────────────────────────────
+          - path: /api/orders(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 5003
+          - path: /api/cart(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 5003
+          - path: /api/payment(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 5003
+
+          # ── mcp-service (:5004) ───────────────────────────────────────────
+          - path: /api/chat(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: mcp-service
+                port:
+                  number: 5004
+
+          # ── frontend (catch-all) ──────────────────────────────────────────
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 5173

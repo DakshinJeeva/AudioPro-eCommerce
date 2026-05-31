@@ -1,0 +1,52 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 09-nginx-configmap.yaml
+#
+# Patches the ingress-nginx controller's global ConfigMap to inject the
+# HTTP Upgrade + Connection headers required for WebSocket proxying.
+#
+# Why this file exists:
+#   The `nginx.ingress.kubernetes.io/configuration-snippet` annotation is
+#   disabled in this cluster (minikube's ingress addon defaults to
+#   allow-snippet-annotations=false since ingress-nginx v1.9+ for security).
+#   The safe alternative is to add global proxy headers via the controller
+#   ConfigMap, which is always permitted.
+#
+# What it does:
+#   Sets `proxy-set-headers` to point to a ConfigMap whose key-value pairs
+#   are injected as extra request headers on every proxied connection.
+#   The Upgrade + Connection headers are required for the HTTP→WebSocket
+#   upgrade handshake that Vite's HMR client initiates.
+#
+# Apply:  kubectl apply -f k8s/09-nginx-configmap.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── 1. Custom headers ConfigMap ───────────────────────────────────────────────
+# Keys are header names, values are NGINX variables or literals.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audiopro-proxy-headers
+  namespace: ingress-nginx          # Must be in the same namespace as the controller
+data:
+  Upgrade: "$http_upgrade"
+  Connection: "upgrade"
+
+---
+# ── 2. Patch the ingress-nginx controller ConfigMap ───────────────────────────
+# Points the controller at our custom headers ConfigMap above.
+# The controller watches this ConfigMap and hot-reloads nginx.conf automatically.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  # Tell the controller to inject the headers from our custom ConfigMap
+  proxy-set-headers: "ingress-nginx/audiopro-proxy-headers"
+
+  # Keep connections alive long enough for WebSocket sessions
+  proxy-read-timeout: "3600"
+  proxy-send-timeout: "3600"
+
+  # HTTP/1.1 is required to carry the Upgrade header
+  proxy-http-version: "1.1"

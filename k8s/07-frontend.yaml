@@ -1,0 +1,128 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 07-frontend.yaml
+# Deployment + ClusterIP Service for the Vite/React frontend (port 5173).
+#
+# In Kubernetes the Vite dev-server proxy uses the ClusterIP DNS names
+# (user-service, product-service, etc.) which are injected via the Secret.
+#
+# NOTE: For production you would build a static bundle and serve it with Nginx
+# instead of running `vite --host`.  The Deployment below mirrors the current
+# Docker Compose setup (dev server) so you can deploy without changes.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: audiopro
+  labels:
+    app: frontend
+    tier: frontend
+    project: audiopro-ecommerce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      initContainers:
+        - name: wait-for-backends
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              for svc in user-service:5001 product-service:5002 order-service:5003; do
+                until wget -qO- http://$svc/health; do
+                  echo "Waiting for $svc..."; sleep 3;
+                done
+              done
+      containers:
+        - name: frontend
+          image: audiopro/frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5173
+          env:
+            # These override the values in vite.config.js proxy targets.
+            # They MUST match the ClusterIP Service names in this namespace.
+            - name: VITE_USER_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: audiopro-secret
+                  key: VITE_USER_API_URL
+            - name: VITE_PRODUCT_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: audiopro-secret
+                  key: VITE_PRODUCT_API_URL
+            - name: VITE_ORDER_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: audiopro-secret
+                  key: VITE_ORDER_API_URL
+            - name: VITE_MCP_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: audiopro-secret
+                  key: VITE_MCP_API_URL
+            - name: VITE_STRIPE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: audiopro-secret
+                  key: VITE_STRIPE_KEY
+            - name: CHOKIDAR_USEPOLLING
+              value: "true"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+# ── ClusterIP Service ─────────────────────────────────────────────────────────
+# The Ingress routes external traffic here via the path rule "/".
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: audiopro
+  labels:
+    app: frontend
+    project: audiopro-ecommerce
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 5173
+      targetPort: 5173
+      protocol: TCP
+  type: ClusterIP

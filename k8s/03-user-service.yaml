@@ -1,0 +1,84 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 03-user-service.yaml
+# Deployment + ClusterIP Service for the User microservice (port 5001).
+# Handles: registration, login, JWT auth, contact, password reset.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: audiopro
+  labels:
+    app: user-service
+    tier: backend
+    project: audiopro-ecommerce
+spec:
+  replicas: 2                       # 2 pods for basic HA
+  selector:
+    matchLabels:
+      app: user-service
+  strategy:
+    type: RollingUpdate             # Zero-downtime deploys
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: user-service
+        tier: backend
+    spec:
+      containers:
+        - name: user-service
+          image: audiopro/user-service:latest   # Replace with your registry image
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5001
+          envFrom:
+            - secretRef:
+                name: audiopro-secret           # All env vars from 01-secret.yaml
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+# ── ClusterIP Service ─────────────────────────────────────────────────────────
+# Internal DNS name: http://user-service.audiopro.svc.cluster.local:5001
+# Other pods reach it simply as: http://user-service:5001
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: audiopro
+  labels:
+    app: user-service
+    project: audiopro-ecommerce
+spec:
+  selector:
+    app: user-service
+  ports:
+    - name: http
+      port: 5001
+      targetPort: 5001
+      protocol: TCP
+  type: ClusterIP

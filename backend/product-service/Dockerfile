@@ -25,8 +25,6 @@ COPY middleware-service/         ./middleware-service/
 COPY user-service/models/        ./user-service/models/
 COPY order-service/models/       ./order-service/models/
 
-# 3. Ensure uploads directory exists (images are served from here)
-RUN mkdir -p uploads
 
 EXPOSE 5002
 

@@ -1,0 +1,31 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# frontend/.dockerignore
+#
+# CRITICAL: Without this file, `COPY . .` in the Dockerfile would copy the
+# host's node_modules into the container ON TOP of the ones installed by
+# `RUN npm install`. This creates two separate copies of React in the image,
+# causing React's "multiple instances" invariant violation and crashing the app.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Never copy host dependencies into the image ───────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Build output (not needed for the dev server image) ───────────────────────
+dist/
+build/
+
+# ── Editor / OS noise ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.local
+
+# ── Git (reduces build context size) ─────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Environment files (secrets are injected via K8s Secret at runtime) ────────
+.env
+.env.*

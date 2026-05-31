@@ -1,0 +1,93 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 06-mcp-service.yaml
+# Deployment + ClusterIP Service for the AI/MCP microservice (port 5004).
+# Handles: POST /api/chat (OpenRouter + cart/order tool dispatch).
+# Depends on order-service being healthy before starting.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-service
+  namespace: audiopro
+  labels:
+    app: mcp-service
+    tier: backend
+    project: audiopro-ecommerce
+spec:
+  replicas: 1   # AI service — single replica is fine; scale up if needed
+  selector:
+    matchLabels:
+      app: mcp-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: mcp-service
+        tier: backend
+    spec:
+      initContainers:
+        - name: wait-for-order-service
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- http://order-service:5003/health; do
+                echo "Waiting for order-service..."; sleep 3;
+              done
+      containers:
+        - name: mcp-service
+          image: audiopro/mcp-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5004
+          envFrom:
+            - secretRef:
+                name: audiopro-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5004
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5004
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+# ── ClusterIP Service ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-service
+  namespace: audiopro
+  labels:
+    app: mcp-service
+    project: audiopro-ecommerce
+spec:
+  selector:
+    app: mcp-service
+  ports:
+    - name: http
+      port: 5004
+      targetPort: 5004
+      protocol: TCP
+  type: ClusterIP
