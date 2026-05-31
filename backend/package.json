@@ -1,17 +1,26 @@
 {
-  "name": "backend",
+  "name": "audiopro-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "AudioPro eCommerce – Node.js backend (monolith + microservices)",
   "main": "server.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start:user": "node user-service/server.js",
+    "start:product": "node product-service/server.js",
+    "start:order": "node order-service/server.js",
+    "start:mcp": "node mcp-service/server.js",
+    "start:mcp:stdio": "node mcp-service/mcp_server.js",
+    "dev:user": "nodemon user-service/server.js",
+    "dev:product": "nodemon product-service/server.js",
+    "dev:order": "nodemon order-service/server.js",
+    "dev:mcp": "nodemon mcp-service/server.js",
+    "dev:all": "concurrently \"npm run dev:user\" \"npm run dev:product\" \"npm run dev:order\" \"npm run dev:mcp\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@openrouter/sdk": "^0.12.35",
@@ -31,6 +40,7 @@
     "twilio": "^5.10.5"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "nodemon": "^3.1.10"
   }
 }
