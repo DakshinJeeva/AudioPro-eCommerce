@@ -1,0 +1,16 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: audiopro-prod
+  region: us-east-1
+  version: "1.30" # Uses a stable, fully-supported Kubernetes version
+
+managedNodeGroups:
+  - name: audiopro-workers
+    instanceType: t3.small  # 2 vCPUs, 2GB RAM — perfect for running your 5 microservices smoothly
+    desiredCapacity: 1       # Starts with 1 virtual machine for high availability
+    minSize: 1
+    maxSize: 2
+    volumeSize: 30           # 30GB disk space per worker node
+    privateNetworking: true  # Keeps your worker nodes safely hidden from the public internet

@@ -1,58 +1,36 @@
-#!/usr/bin/env bash
-# ──────────────────────────────────────────────────────────────────────────────
-# build-and-push.sh
-# Builds all Docker images and pushes them to a registry.
-#
-# Usage:
-#   REGISTRY=docker.io/your-dockerhub-username ./k8s/scripts/build-and-push.sh
-#   REGISTRY=gcr.io/your-gcp-project          ./k8s/scripts/build-and-push.sh
-#   REGISTRY=your-account.dkr.ecr.us-east-1.amazonaws.com ./k8s/scripts/build-and-push.sh
-#
-# For minikube (no registry needed):
-#   eval $(minikube docker-env)
-#   ./k8s/scripts/build-and-push.sh --minikube
-# ──────────────────────────────────────────────────────────────────────────────
-set -euo pipefail
+#!/bin/bash
 
-REGISTRY="${REGISTRY:-audiopro}"
-TAG="${TAG:-latest}"
-MINIKUBE="${1:-}"
-PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# Stop script if any command fails
+set -e
 
-log() { echo -e "\033[1;36m[build-and-push]\033[0m $*"; }
+# Replace with your AWS account ID
+ECR_REGISTRY="227037612486.dkr.ecr.us-east-1.amazonaws.com"
 
-declare -A SERVICES=(
-  ["user-service"]="backend user-service/Dockerfile"
-  ["product-service"]="backend product-service/Dockerfile"
-  ["order-service"]="backend order-service/Dockerfile"
-  ["mcp-service"]="backend mcp-service/Dockerfile"
-  ["frontend"]="frontend Dockerfile"
-)
+echo "🚀 Starting Docker build & push..."
 
-for name in "${!SERVICES[@]}"; do
-  read -r ctx_dir dockerfile <<< "${SERVICES[$name]}"
-  image="${REGISTRY}/${name}:${TAG}"
-  log "Building  → $image  (context: $ctx_dir, dockerfile: $dockerfile)"
-  docker build \
-    -t "$image" \
-    -f "${PROJECT_ROOT}/${ctx_dir}/${dockerfile}" \
-    "${PROJECT_ROOT}/${ctx_dir}"
+# 1. User Service
+echo "📦 Building user-service..."
+docker build -t $ECR_REGISTRY/audiopro/user-service:latest -f ../../backend/user-service/Dockerfile ../../backend
+docker push $ECR_REGISTRY/audiopro/user-service:latest
 
-  if [[ "$MINIKUBE" != "--minikube" ]]; then
-    log "Pushing   → $image"
-    docker push "$image"
-  fi
-done
+# 2. Product Service
+echo "📦 Building product-service..."
+docker build -t $ECR_REGISTRY/audiopro/product-service:latest -f ../../backend/product-service/Dockerfile ../../backend
+docker push $ECR_REGISTRY/audiopro/product-service:latest
 
-log "✅ All images built${MINIKUBE:+ (minikube local mode, skipped push)}."
+# 3. Order Service
+echo "📦 Building order-service..."
+docker build -t $ECR_REGISTRY/audiopro/order-service:latest -f ../../backend/order-service/Dockerfile ../../backend
+docker push $ECR_REGISTRY/audiopro/order-service:latest
 
-# ── Patch image names in manifests ───────────────────────────────────────────
-log "Patching image references in k8s manifests..."
-for name in user-service product-service order-service mcp-service frontend; do
-  manifest_image="${REGISTRY}/${name}:${TAG}"
-  # Use kubectl set image or sed — sed is simpler here
-  find "${PROJECT_ROOT}/k8s" -name "*.yaml" -exec \
-    sed -i "s|audiopro/${name}:latest|${manifest_image}|g" {} \;
-done
+# 4. MCP Service
+echo "📦 Building mcp-service..."
+docker build -t $ECR_REGISTRY/audiopro/mcp-service:latest -f ../../backend/mcp-service/Dockerfile ../../backend
+docker push $ECR_REGISTRY/audiopro/mcp-service:latest
 
-log "Done! Run: kubectl apply -f ${PROJECT_ROOT}/k8s/"
+# 5. Frontend
+echo "📦 Building frontend..."
+docker build -t $ECR_REGISTRY/audiopro/frontend:latest -f ../../frontend/Dockerfile ../../frontend
+docker push $ECR_REGISTRY/audiopro/frontend:latest
+
+echo "✅ All images built and pushed successfully!"
