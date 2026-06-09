@@ -43,8 +43,8 @@ spec:
               done
       containers:
         - name: mcp-service
-          image: audiopro/mcp-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 227037612486.dkr.ecr.us-east-1.amazonaws.com/audiopro/mcp-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5004
           envFrom:
@@ -52,11 +52,11 @@ spec:
                 name: audiopro-secret
           resources:
             requests:
-              cpu: "100m"
-              memory: "256Mi"
+              cpu: "50m"
+              memory: "128Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "300m"
+              memory: "384Mi"
           livenessProbe:
             httpGet:
               path: /health

@@ -15,7 +15,7 @@ metadata:
     tier: backend
     project: audiopro-ecommerce
 spec:
-  replicas: 2                       # 2 pods for basic HA
+  replicas: 1                       # 2 pods for basic HA
   selector:
     matchLabels:
       app: user-service
@@ -32,8 +32,8 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: audiopro/user-service:latest   # Replace with your registry image
-          imagePullPolicy: IfNotPresent
+          image: 227037612486.dkr.ecr.us-east-1.amazonaws.com/audiopro/user-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5001
           envFrom:
@@ -41,11 +41,11 @@ spec:
                 name: audiopro-secret           # All env vars from 01-secret.yaml
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "300m"
+              memory: "256Mi"
           livenessProbe:
             httpGet:
               path: /health

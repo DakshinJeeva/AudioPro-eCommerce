@@ -16,7 +16,7 @@ metadata:
     tier: backend
     project: audiopro-ecommerce
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: product-service
@@ -33,8 +33,8 @@ spec:
     spec:
       containers:
         - name: product-service
-          image: audiopro/product-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 227037612486.dkr.ecr.us-east-1.amazonaws.com/audiopro/product-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5002
           envFrom:
@@ -45,11 +45,11 @@ spec:
               mountPath: /app/uploads   # Matches the path used in docker-compose
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "300m"
+              memory: "256Mi"
           livenessProbe:
             httpGet:
               path: /health

@@ -16,7 +16,7 @@ metadata:
     tier: backend
     project: audiopro-ecommerce
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: order-service
@@ -55,8 +55,8 @@ spec:
               done
       containers:
         - name: order-service
-          image: audiopro/order-service:latest
-          imagePullPolicy: IfNotPresent
+          image: 227037612486.dkr.ecr.us-east-1.amazonaws.com/audiopro/order-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5003
           envFrom:
@@ -64,11 +64,11 @@ spec:
                 name: audiopro-secret
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "300m"
+              memory: "256Mi"
           livenessProbe:
             httpGet:
               path: /health
