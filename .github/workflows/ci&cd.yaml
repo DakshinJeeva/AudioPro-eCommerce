@@ -162,21 +162,31 @@ jobs:
           kind load docker-image ${{ env.IMAGE_PREFIX }}/mcp-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/frontend:local
 
+      # INSTALL NGINX INGRESS CONTROLLER
+      # 09-nginx-configmap.yaml targets the ingress-nginx namespace, which only
+      # exists after the controller is deployed. Must run before kubectl apply -f .
+      - name: Install NGINX Ingress Controller for Kind
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/kind/deploy.yaml
+          echo "⏳ Waiting for ingress-nginx controller to become ready..."
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=120s
+
       # DRY-RUN AND DEPLOY VALIDATION TEST
       - name: Test Apply App Manifests to Kind
         run: |
-          # 1. Stand up resources 
+          # 1. Stand up resources
           kubectl create namespace audiopro --dry-run=client -o yaml | kubectl apply -f -
-          
-          # 2. Apply your local storage mock patch configuration if you have one
+
+          # 2. Apply local storage mock patch if present
           if [ -f k8s/local-storage-alias.yaml ]; then kubectl apply -f k8s/local-storage-alias.yaml; fi
-          
-          # 3. Apply manifests (swapping any ECR/DockerHub images with your local ones if needed)
-          cd k8s/
-          # Apply your manifests
-          kubectl apply -f .
-          
-          # 4. Wait up to 90 seconds to verify pods spin up without crashing or ImagePullBackOff loops
+
+          # 3. Apply all app manifests — ingress-nginx namespace now exists
+          kubectl apply -f k8s/
+
+          # 4. Wait up to 90 seconds to verify pods spin up cleanly
           echo "⏳ Waiting for cluster convergence status..."
           kubectl rollout status deployment/user-service -n audiopro --timeout=90s
           kubectl rollout status deployment/product-service -n audiopro --timeout=90s
