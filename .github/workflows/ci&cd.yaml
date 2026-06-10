@@ -58,27 +58,27 @@ jobs:
       # all four backend Dockerfiles do `COPY .env .env` at build time.
       - name: Create backend .env from GitHub Secrets
         run: |
-          cat > backend/.env <<'EOF'
-          PORT=5000
-          USER_SERVICE_PORT=5001
-          PRODUCT_SERVICE_PORT=5002
-          ORDER_SERVICE_PORT=5003
-          MCP_SERVICE_PORT=5004
-          FRONTEND_URL=http://localhost:5173
-          JWT_EXPIRES_IN=7d
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
-          SENDGRID_FROM_EMAIL=${{ secrets.SENDGRID_FROM_EMAIL }}
-          CONTACT_EMAIL_USER=${{ secrets.CONTACT_EMAIL_USER }}
-          CONTACT_EMAIL_PASS=${{ secrets.CONTACT_EMAIL_PASS }}
-          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-          VITE_STRIPE_KEY=${{ secrets.VITE_STRIPE_KEY }}
-          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}
-          OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
-          EOF
+          printf '%s\n' \
+            'PORT=5000' \
+            'USER_SERVICE_PORT=5001' \
+            'PRODUCT_SERVICE_PORT=5002' \
+            'ORDER_SERVICE_PORT=5003' \
+            'MCP_SERVICE_PORT=5004' \
+            'FRONTEND_URL=http://localhost:5173' \
+            'JWT_EXPIRES_IN=7d' \
+            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            "MONGO_URI=${{ secrets.MONGO_URI }}" \
+            "SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}" \
+            "SENDGRID_FROM_EMAIL=${{ secrets.SENDGRID_FROM_EMAIL }}" \
+            "CONTACT_EMAIL_USER=${{ secrets.CONTACT_EMAIL_USER }}" \
+            "CONTACT_EMAIL_PASS=${{ secrets.CONTACT_EMAIL_PASS }}" \
+            "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" \
+            "VITE_STRIPE_KEY=${{ secrets.VITE_STRIPE_KEY }}" \
+            "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" \
+            "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" \
+            "TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}" \
+            "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
+          > backend/.env
 
       # Set up local multi-stage caching layers to keep execution times low
       - name: Set up Docker Buildx
@@ -88,8 +88,9 @@ jobs:
       - name: Create Kind Cluster
         uses: helm/kind-action@v1.10.0
         with:
-          version: "v0.23.0" # Keeps matching modern cluster environments
+          version: "v0.23.0"       # Keeps matching modern cluster environments
           kubectl_version: "v1.30.0"
+          cluster_name: kind        # Must be 'kind' — default is 'chart-testing', breaking 'kind load docker-image'
 
       - name: Verify Cluster Connectivity
         run: |
