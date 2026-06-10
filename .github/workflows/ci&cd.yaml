@@ -19,10 +19,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
@@ -58,9 +58,10 @@ jobs:
 
       # SPIN UP A TEMP KIND CLUSTER INSIDE GITHUB ACTIONS RUNNER
       - name: Create Kind Cluster
-        uses: engineerd/setup-kind@v0.6.0
+        uses: helm/kind-action@v1.10.0
         with:
-          version: "v0.22.0" # Keeps matching modern cluster environments
+          version: "v0.23.0" # Keeps matching modern cluster environments
+          kubectl_version: "v1.30.0"
 
       - name: Verify Cluster Connectivity
         run: |
