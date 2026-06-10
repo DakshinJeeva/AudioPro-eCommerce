@@ -1,0 +1,157 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/cd.yaml
+# Continuous Deployment — EKS Deploy
+#
+# Triggers ONLY after the CI workflow succeeds on a push to `main`.
+# This ensures CD never runs on a broken build.
+#
+# What it does:
+#   1. Determines the exact image tag (<short-sha>) produced by CI
+#   2. Updates every k8s Deployment's image reference to that immutable tag
+#   3. Applies all manifests to the EKS cluster (kubectl apply)
+#   4. Waits for every Deployment rollout to complete
+#   5. Patches the ingress-nginx NodePort to 32080/32443 (kind workaround)
+#      — remove this step when deploying to a cloud cluster with a real LB
+#
+# Required GitHub Secrets:
+#   DOCKERHUB_USERNAME       — Docker Hub namespace
+#   AWS_ACCESS_KEY_ID        — IAM user/role with eks:* + ecr:* permissions
+#   AWS_SECRET_ACCESS_KEY    — matching secret key
+#   AWS_REGION               — e.g. us-east-1
+#   EKS_CLUSTER_NAME         — name of your EKS cluster
+#   K8S_SECRET_B64           — base64-encoded content of k8s/01-secret.yaml
+#                              (keeps real credentials out of the repo)
+# ──────────────────────────────────────────────────────────────────────────────
+name: CD — Deploy to EKS
+
+on:
+  # Run only after CI passes on main — prevents deploying broken images
+  workflow_run:
+    workflows: ["CI — Build & Push"]
+    types: [completed]
+    branches: [main]
+
+env:
+  IMAGE_PREFIX: ${{ secrets.DOCKERHUB_USERNAME }}/audiopro
+  NS: audiopro
+  # Short SHA of the commit that triggered CI — used as the image tag
+  IMAGE_TAG: ${{ github.sha && format('{0}', github.sha) }}
+
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    # Only deploy when CI actually succeeded (not just finished)
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Checkout the exact commit that was built by CI
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # ── Compute immutable image tag ───────────────────────────────────────────
+      - name: Compute image tag (short SHA)
+        id: tag
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          SHORT="${SHA:0:7}"
+          echo "short_sha=${SHORT}" >> "$GITHUB_OUTPUT"
+          echo "Image tag will be: ${SHORT}"
+
+      # ── AWS credentials ───────────────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      # ── kubectl → EKS ─────────────────────────────────────────────────────────
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name   "${{ secrets.EKS_CLUSTER_NAME }}" \
+            --region "${{ secrets.AWS_REGION }}"
+
+      # ── Inject real secrets ───────────────────────────────────────────────────
+      # The checked-in 01-secret.yaml contains placeholder values.
+      # The real secret is stored base64-encoded in a GitHub secret and
+      # applied here so credentials never live in the repository.
+      - name: Apply real Kubernetes secrets
+        run: |
+          echo "${{ secrets.K8S_SECRET_B64 }}" | base64 -d | kubectl apply -f -
+
+      # ── Pin every Deployment to the exact image SHA ───────────────────────────
+      # sed replaces the generic `:latest` (or `:local`) tag in every manifest
+      # with the immutable short-SHA tag so the cluster always knows what is running.
+      - name: Stamp image tags in manifests
+        env:
+          TAG: ${{ steps.tag.outputs.short_sha }}
+          PREFIX: ${{ env.IMAGE_PREFIX }}
+        run: |
+          SERVICES=(user-service product-service order-service mcp-service frontend)
+          for svc in "${SERVICES[@]}"; do
+            find k8s/ -name "*.yaml" -exec sed -i \
+              "s|${PREFIX}-${svc}:.*|${PREFIX}-${svc}:${TAG}|g" {} +
+          done
+          echo "── Stamped tags ──────────────────────────────────────"
+          grep -r "image:" k8s/ | grep audiopro || true
+
+      # ── Apply manifests in order ──────────────────────────────────────────────
+      - name: Apply Kubernetes manifests
+        run: |
+          for f in k8s/[0-9]*.yaml; do
+            echo "→ kubectl apply -f $(basename "$f")"
+            kubectl apply -f "$f"
+          done
+
+      # ── Wait for rollouts ─────────────────────────────────────────────────────
+      - name: Wait for Deployments to roll out
+        run: |
+          DEPLOYMENTS=(user-service product-service order-service mcp-service frontend)
+          for dep in "${DEPLOYMENTS[@]}"; do
+            echo "⏳ Waiting for ${dep}..."
+            kubectl rollout status deployment/"${dep}" \
+              -n "${{ env.NS }}" --timeout=180s
+          done
+          echo "✅ All Deployments rolled out successfully."
+
+      # ── Smoke test ────────────────────────────────────────────────────────────
+      - name: Smoke test — health checks
+        run: |
+          # Resolve the ingress address (EKS gives a real hostname)
+          INGRESS_HOST=$(kubectl get ingress audiopro-ingress \
+            -n "${{ env.NS }}" \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+          if [[ -z "$INGRESS_HOST" ]]; then
+            INGRESS_HOST=$(kubectl get ingress audiopro-ingress \
+              -n "${{ env.NS }}" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          fi
+
+          echo "Ingress: ${INGRESS_HOST}"
+
+          # Give the LB ~30s to propagate DNS after a fresh deploy
+          sleep 30
+
+          for path in /api/users/health /api/products/health /api/orders/health; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://${INGRESS_HOST}${path}" --max-time 10 || echo "000")
+            echo "${path} → HTTP ${STATUS}"
+            if [[ "$STATUS" != "200" ]]; then
+              echo "❌ Smoke test FAILED for ${path} (got ${STATUS})"
+              exit 1
+            fi
+          done
+          echo "✅ All smoke tests passed."
+
+      # ── Notify on failure ─────────────────────────────────────────────────────
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Deployment FAILED for commit ${{ github.event.workflow_run.head_sha }}"
+          echo "Run 'kubectl rollout undo deployment/<name> -n audiopro' to roll back."

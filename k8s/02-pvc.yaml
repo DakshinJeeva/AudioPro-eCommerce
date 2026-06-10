@@ -14,7 +14,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce   # One pod writer at a time (product-service only writes)
-  storageClassName: gp2-immediate  # EBS CSI provisioner (ebs.csi.aws.com), Immediate binding
+  storageClassName: standard  # EBS CSI provisioner (ebs.csi.aws.com), Immediate binding
   resources:
     requests:
       storage: 2Gi

@@ -33,8 +33,8 @@ spec:
     spec:
       containers:
         - name: product-service
-          image: 227037612486.dkr.ecr.us-east-1.amazonaws.com/audiopro/product-service:latest
-          imagePullPolicy: Always
+          image: audiopro/product-service:local
+          imagePullPolicy: Never
           ports:
             - containerPort: 5002
           envFrom:

@@ -43,8 +43,8 @@ spec:
               done
       containers:
         - name: mcp-service
-          image: 227037612486.dkr.ecr.us-east-1.amazonaws.com/audiopro/mcp-service:latest
-          imagePullPolicy: Always
+          image: audiopro/mcp-service:local
+          imagePullPolicy: Never
           ports:
             - containerPort: 5004
           envFrom:

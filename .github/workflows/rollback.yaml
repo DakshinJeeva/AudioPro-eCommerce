@@ -1,0 +1,102 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/rollback.yaml
+# Manual emergency rollback — undoes the last Deployment rollout.
+#
+# Trigger: Actions tab → "Rollback" → Run workflow
+# Inputs:
+#   service    — which Deployment to roll back (or 'all')
+#   reason     — free-text reason logged in the run summary
+# ──────────────────────────────────────────────────────────────────────────────
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to roll back (user-service | product-service | order-service | mcp-service | frontend | all)"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - user-service
+          - product-service
+          - order-service
+          - mcp-service
+          - frontend
+      reason:
+        description: "Reason for rollback (logged in summary)"
+        required: true
+        type: string
+
+env:
+  NS: audiopro
+
+jobs:
+  rollback:
+    name: Rollback — ${{ inputs.service }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name   "${{ secrets.EKS_CLUSTER_NAME }}" \
+            --region "${{ secrets.AWS_REGION }}"
+
+      - name: Log rollback reason
+        run: |
+          echo "## 🔄 Rollback Initiated" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field   | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Service | \`${{ inputs.service }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Reason  | ${{ inputs.reason }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Actor   | @${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Time    | $(date -u) |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Roll back Deployments
+        run: |
+          DEPLOYMENTS=(user-service product-service order-service mcp-service frontend)
+
+          if [[ "${{ inputs.service }}" == "all" ]]; then
+            TARGETS=("${DEPLOYMENTS[@]}")
+          else
+            TARGETS=("${{ inputs.service }}")
+          fi
+
+          for dep in "${TARGETS[@]}"; do
+            echo "⏪ Rolling back ${dep}..."
+            kubectl rollout undo deployment/"${dep}" -n "${{ env.NS }}"
+          done
+
+      - name: Wait for rollback rollouts
+        run: |
+          DEPLOYMENTS=(user-service product-service order-service mcp-service frontend)
+
+          if [[ "${{ inputs.service }}" == "all" ]]; then
+            TARGETS=("${DEPLOYMENTS[@]}")
+          else
+            TARGETS=("${{ inputs.service }}")
+          fi
+
+          for dep in "${TARGETS[@]}"; do
+            echo "⏳ Waiting for ${dep} to stabilise..."
+            kubectl rollout status deployment/"${dep}" \
+              -n "${{ env.NS }}" --timeout=120s
+          done
+
+      - name: Show current image tags post-rollback
+        run: |
+          echo "## ✅ Rollback Complete — Current Images" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          kubectl get deployments -n "${{ env.NS }}" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].image}{"\n"}{end}' \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
