@@ -9,6 +9,8 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_PREFIX: audiopro-local
+  # Opt all JS-based actions into Node 24 to silence deprecation warnings
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ── 1. Lint / Test ───────────────────────────────────────────────────────────
@@ -51,6 +53,32 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # RECONSTRUCT .env FROM SECRETS — .env is gitignored so it's absent in CI;
+      # all four backend Dockerfiles do `COPY .env .env` at build time.
+      - name: Create backend .env from GitHub Secrets
+        run: |
+          cat > backend/.env <<'EOF'
+          PORT=5000
+          USER_SERVICE_PORT=5001
+          PRODUCT_SERVICE_PORT=5002
+          ORDER_SERVICE_PORT=5003
+          MCP_SERVICE_PORT=5004
+          FRONTEND_URL=http://localhost:5173
+          JWT_EXPIRES_IN=7d
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_FROM_EMAIL=${{ secrets.SENDGRID_FROM_EMAIL }}
+          CONTACT_EMAIL_USER=${{ secrets.CONTACT_EMAIL_USER }}
+          CONTACT_EMAIL_PASS=${{ secrets.CONTACT_EMAIL_PASS }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          VITE_STRIPE_KEY=${{ secrets.VITE_STRIPE_KEY }}
+          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}
+          OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+          EOF
 
       # Set up local multi-stage caching layers to keep execution times low
       - name: Set up Docker Buildx
