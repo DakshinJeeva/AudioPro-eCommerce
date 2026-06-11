@@ -215,17 +215,23 @@ jobs:
           kubectl rollout status deployment/product-service -n audiopro --timeout=180s
           kubectl rollout status deployment/order-service -n audiopro --timeout=180s
           kubectl rollout status deployment/mcp-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/frontend -n audiopro --timeout=180s
+          kubectl rollout status deployment/frontend -n audiopro --timeout=300s
 
-      # 👇 ADD THIS NEW STEP RIGHT BELOW IT TO CATCH ANY LOG ERRORS VISUALLY
+      # 👇 Debug step on failure — dumps full diagnostic state across all pods
       - name: Debug Cluster on Failure
         if: failure()
         run: |
           echo "=== KUBERNETES PODS STATUS ==="
-          kubectl get pods -n audiopro || true
-          
-          echo "=== USER SERVICE CONTAINER LOGS ==="
-          kubectl logs -n audiopro deployment/user-service --all-containers=true --tail=100 || true
+          kubectl get pods -n audiopro -o wide || true
+
+          echo "=== FRONTEND LOGS ==="
+          kubectl logs -n audiopro deployment/frontend --all-containers=true --tail=100 || true
+
+          echo "=== USER SERVICE LOGS ==="
+          kubectl logs -n audiopro deployment/user-service --all-containers=true --tail=50 || true
+
+          echo "=== ALL POD DESCRIPTIONS ==="
+          kubectl describe pods -n audiopro || true
   # ── 3. Production Publish (Only runs when code merges to main) ──────────────────
   production-registry-push:
     name: Tag & Push to Docker Hub (Main Only)
