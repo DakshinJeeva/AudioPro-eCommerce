@@ -16,7 +16,7 @@ metadata:
     tier: backend
     project: audiopro-ecommerce
 spec:
-  replicas: 1   # AI service — single replica is fine; scale up if needed
+  replicas: 1    
   selector:
     matchLabels:
       app: mcp-service
