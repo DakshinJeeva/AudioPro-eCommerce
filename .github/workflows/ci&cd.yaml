@@ -54,7 +54,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # RECONSTRUCT .env FROM SECRETS — .env is gitignored so it's absent in CI;
+      # RECONSTRUCT .env FROM SECRETS .env is gitignored so it's absent in CI;
       # all four backend Dockerfiles do `COPY .env .env` at build time.
       - name: Create backend .env from GitHub Secrets
         run: |
