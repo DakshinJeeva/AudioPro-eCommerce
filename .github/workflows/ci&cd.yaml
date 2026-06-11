@@ -207,8 +207,11 @@ jobs:
 
           # 4. Wait up to 90 seconds to verify pods spin up cleanly
           echo "⏳ Waiting for cluster convergence status..."
-          kubectl rollout status deployment/user-service -n audiopro --timeout=90s
-          kubectl rollout status deployment/product-service -n audiopro --timeout=90s
+          kubectl rollout status deployment/user-service -n audiopro --timeout=180s
+          kubectl rollout status deployment/product-service -n audiopro --timeout=180s
+          kubectl rollout status deployment/order-service -n audiopro --timeout=180s
+          kubectl rollout status deployment/mcp-service -n audiopro --timeout=180s
+          kubectl rollout status deployment/frontend -n audiopro --timeout=180s
 
   # ── 3. Production Publish (Only runs when code merges to main) ──────────────────
   production-registry-push:
