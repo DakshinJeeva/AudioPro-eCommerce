@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: audiopro/user-service:local
+          image: audiopro-local/user-service:local
           imagePullPolicy: Never
           ports:
             - containerPort: 5001

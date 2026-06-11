@@ -43,7 +43,7 @@ spec:
               done
       containers:
         - name: mcp-service
-          image: audiopro/mcp-service:local
+          image: audiopro-local/mcp-service:local
           imagePullPolicy: Never
           ports:
             - containerPort: 5004

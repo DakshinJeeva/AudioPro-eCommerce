@@ -55,7 +55,7 @@ spec:
               done
       containers:
         - name: order-service
-          image: audiopro/order-service:local
+          image: audiopro-local/order-service:local
           imagePullPolicy: Never
           ports:
             - containerPort: 5003

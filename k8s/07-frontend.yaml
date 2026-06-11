@@ -50,7 +50,7 @@ spec:
               done
       containers:
         - name: frontend
-          image: audiopro/frontend:local
+          image: audiopro-local/frontend:local
           imagePullPolicy: Never
           ports:
             - containerPort: 5173
