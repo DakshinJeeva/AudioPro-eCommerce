@@ -161,7 +161,6 @@ jobs:
           kind load docker-image ${{ env.IMAGE_PREFIX }}/frontend:local
 
       # INSTALL NGINX INGRESS CONTROLLER
-      # 09-nginx-configmap.yaml targets the ingress-nginx namespace, which only
       - name: Prepare Kind Node for Ingress
         run: |
           echo "🔧 Labeling node for ingress..."
@@ -197,7 +196,7 @@ jobs:
           # 1. Stand up resources
           kubectl create namespace audiopro --dry-run=client -o yaml | kubectl apply -f -
 
-          # 2. CREATE KUBERNETES SECRET FROM THE .ENV FILE 👈 (THE FIX)
+          # 2. CREATE BOTH PLURAL AND SINGULAR SECRETS TO SATISFY ALL MANIFESTS ✅
           kubectl create secret generic audiopro-secrets \
             --namespace=audiopro \
             --from-env-file=backend/.env \
@@ -214,7 +213,7 @@ jobs:
           # 4. Apply all app manifests — ingress-nginx namespace now exists
           kubectl apply -f k8s/
 
-          # 5. Wait up to 180 seconds to verify pods spin up cleanly
+          # 5. Wait up to 300 seconds to verify pods spin up cleanly
           echo "⏳ Waiting for cluster convergence status..."
           kubectl rollout status deployment/user-service -n audiopro --timeout=180s
           kubectl rollout status deployment/product-service -n audiopro --timeout=180s
@@ -222,7 +221,7 @@ jobs:
           kubectl rollout status deployment/mcp-service -n audiopro --timeout=180s
           kubectl rollout status deployment/frontend -n audiopro --timeout=300s
 
-      # 👇 Debug step on failure — dumps full diagnostic state across all pods
+      # Debug step on failure — dumps full diagnostic state across all pods
       - name: Debug Cluster on Failure
         if: failure()
         run: |
@@ -237,6 +236,7 @@ jobs:
 
           echo "=== ALL POD DESCRIPTIONS ==="
           kubectl describe pods -n audiopro || true
+
   # ── 3. Production Publish (Only runs when code merges to main) ──────────────────
   production-registry-push:
     name: Tag & Push to Docker Hub (Main Only)
@@ -267,6 +267,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 👇 FIXED: Injects env details for compiling your production-grade code layers
+      - name: Create backend .env from GitHub Secrets (Prod Build Context)
+        run: |
+          printf '%s\n' \
+            'PORT=5000' \
+            'USER_SERVICE_PORT=5001' \
+            'PRODUCT_SERVICE_PORT=5002' \
+            'ORDER_SERVICE_PORT=5003' \
+            'MCP_SERVICE_PORT=5004' \
+            'FRONTEND_URL=http://localhost:5173' \
+            'JWT_EXPIRES_IN=7d' \
+            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            "MONGO_URI=${{ secrets.MONGO_URI }}" \
+            "SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}" \
+            "SENDGRID_FROM_EMAIL=${{ secrets.SENDGRID_FROM_EMAIL }}" \
+            "CONTACT_EMAIL_USER=${{ secrets.CONTACT_EMAIL_USER }}" \
+            "CONTACT_EMAIL_PASS=${{ secrets.CONTACT_EMAIL_PASS }}" \
+            "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" \
+            "VITE_STRIPE_KEY=${{ secrets.VITE_STRIPE_KEY }}" \
+            "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" \
+            "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" \
+            "TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}" \
+            "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
+          > backend/.env
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -294,4 +319,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service }}-prod
-          cache-to: type=gha,scope=${{ matrix.service }}-prod,mode=max
+          cache-to: type=gha,scope=${{ matrix.service }}-prod,mode=max_
