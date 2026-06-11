@@ -11,10 +11,10 @@ nodes:
         node-labels: "ingress-ready=true"
 
   extraPortMappings:
-  - containerPort: 32080   # 👈 FIX HERE
+  - containerPort: 80      # ingress-nginx controller binds to hostPort 80 directly
     hostPort: 80
     protocol: TCP
-  - containerPort: 32443   # 👈 FIX HERE
+  - containerPort: 443     # ingress-nginx controller binds to hostPort 443 directly
     hostPort: 443
     protocol: TCP
 
