@@ -38,7 +38,7 @@ spec:
             - containerPort: 5001
           envFrom:
             - secretRef:
-                name: audiopro-secret           # All env vars from 01-secret.yaml
+                name: audiopro-secrets         # All env vars from 01-secret.yaml
           resources:
             requests:
               cpu: "50m"

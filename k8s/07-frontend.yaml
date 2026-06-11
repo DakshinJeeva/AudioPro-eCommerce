@@ -60,27 +60,27 @@ spec:
             - name: VITE_USER_API_URL
               valueFrom:
                 secretKeyRef:
-                  name: audiopro-secret
+                  name: audiopro-secrets
                   key: VITE_USER_API_URL
             - name: VITE_PRODUCT_API_URL
               valueFrom:
                 secretKeyRef:
-                  name: audiopro-secret
+                  name: audiopro-secrets
                   key: VITE_PRODUCT_API_URL
             - name: VITE_ORDER_API_URL
               valueFrom:
                 secretKeyRef:
-                  name: audiopro-secret
+                  name: audiopro-secrets
                   key: VITE_ORDER_API_URL
             - name: VITE_MCP_API_URL
               valueFrom:
                 secretKeyRef:
-                  name: audiopro-secret
+                  name: audiopro-secrets
                   key: VITE_MCP_API_URL
             - name: VITE_STRIPE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: audiopro-secret
+                  name: audiopro-secrets
                   key: VITE_STRIPE_KEY
             - name: CHOKIDAR_USEPOLLING
               value: "true"

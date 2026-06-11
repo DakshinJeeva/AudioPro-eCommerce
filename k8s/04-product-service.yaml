@@ -39,7 +39,7 @@ spec:
             - containerPort: 5002
           envFrom:
             - secretRef:
-                name: audiopro-secret
+                name: audiopro-secrets
           volumeMounts:
             - name: uploads-storage
               mountPath: /app/uploads   # Matches the path used in docker-compose

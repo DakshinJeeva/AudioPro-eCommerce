@@ -197,13 +197,19 @@ jobs:
           # 1. Stand up resources
           kubectl create namespace audiopro --dry-run=client -o yaml | kubectl apply -f -
 
-          # 2. Apply local storage mock patch if present
+          # 2. CREATE KUBERNETES SECRET FROM THE .ENV FILE 👈 (THE FIX)
+          kubectl create secret generic audiopro-secrets \
+            --namespace=audiopro \
+            --from-env-file=backend/.env \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # 3. Apply local storage mock patch if present
           if [ -f k8s/local-storage-alias.yaml ]; then kubectl apply -f k8s/local-storage-alias.yaml; fi
 
-          # 3. Apply all app manifests — ingress-nginx namespace now exists
+          # 4. Apply all app manifests — ingress-nginx namespace now exists
           kubectl apply -f k8s/
 
-          # 4. Wait up to 90 seconds to verify pods spin up cleanly
+          # 5. Wait up to 180 seconds to verify pods spin up cleanly
           echo "⏳ Waiting for cluster convergence status..."
           kubectl rollout status deployment/user-service -n audiopro --timeout=180s
           kubectl rollout status deployment/product-service -n audiopro --timeout=180s
@@ -211,6 +217,15 @@ jobs:
           kubectl rollout status deployment/mcp-service -n audiopro --timeout=180s
           kubectl rollout status deployment/frontend -n audiopro --timeout=180s
 
+      # 👇 ADD THIS NEW STEP RIGHT BELOW IT TO CATCH ANY LOG ERRORS VISUALLY
+      - name: Debug Cluster on Failure
+        if: failure()
+        run: |
+          echo "=== KUBERNETES PODS STATUS ==="
+          kubectl get pods -n audiopro || true
+          
+          echo "=== USER SERVICE CONTAINER LOGS ==="
+          kubectl logs -n audiopro deployment/user-service --all-containers=true --tail=100 || true
   # ── 3. Production Publish (Only runs when code merges to main) ──────────────────
   production-registry-push:
     name: Tag & Push to Docker Hub (Main Only)

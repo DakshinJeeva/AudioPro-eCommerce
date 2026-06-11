@@ -61,7 +61,7 @@ spec:
             - containerPort: 5003
           envFrom:
             - secretRef:
-                name: audiopro-secret
+                name: audiopro-secrets
           resources:
             requests:
               cpu: "50m"
