@@ -219,7 +219,7 @@ jobs:
           kubectl rollout status deployment/product-service -n audiopro --timeout=180s
           kubectl rollout status deployment/order-service -n audiopro --timeout=180s
           kubectl rollout status deployment/mcp-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/frontend -n audiopro --timeout=300s
+          kubectl rollout status deployment/frontend -n audiopro --timeout=600s
 
       # Debug step on failure — dumps full diagnostic state across all pods
       - name: Debug Cluster on Failure

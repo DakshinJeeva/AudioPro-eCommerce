@@ -89,22 +89,28 @@ spec:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "1000m" # Optimized: Uped to 1 Core to prevent heavy boot-throttling in CI
               memory: "768Mi"
-          livenessProbe:
+          # FIXED: Handles the intensive warm-up phase on resource-constrained nodes.
+          startupProbe:
             httpGet:
               path: /
               port: 5173
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            failureThreshold: 5
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30 # Gives Vite 315 seconds to fully bind to its port before a crash loop triggers
           readinessProbe:
             httpGet:
               path: /
               port: 5173
-            initialDelaySeconds: 45
             periodSeconds: 10
-            failureThreshold: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            periodSeconds: 30
+            failureThreshold: 3
 
 ---
 # ── ClusterIP Service ─────────────────────────────────────────────────────────
