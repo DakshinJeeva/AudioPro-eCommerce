@@ -76,6 +76,10 @@ jobs:
             "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" \
             "TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}" \
             "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
+            'VITE_USER_API_URL=http://user-service:5001' \
+            'VITE_PRODUCT_API_URL=http://product-service:5002' \
+            'VITE_ORDER_API_URL=http://order-service:5003' \
+            'VITE_MCP_API_URL=http://mcp-service:5004' \
           > backend/.env
 
       # Set up local multi-stage caching layers to keep execution times low
