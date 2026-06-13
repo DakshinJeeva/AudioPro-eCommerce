@@ -80,6 +80,7 @@ jobs:
             'VITE_PRODUCT_API_URL=http://product-service:5002' \
             'VITE_ORDER_API_URL=http://order-service:5003' \
             'VITE_MCP_API_URL=http://mcp-service:5004' \
+            'REDIS_URL=redis://redis:6379' \
           > backend/.env
 
       # Set up local multi-stage caching layers to keep execution times low
@@ -219,11 +220,12 @@ jobs:
 
           # 5. Wait up to 300 seconds to verify pods spin up cleanly
           echo "⏳ Waiting for cluster convergence status..."
-          kubectl rollout status deployment/user-service -n audiopro --timeout=180s
+          kubectl rollout status deployment/redis         -n audiopro --timeout=90s
+          kubectl rollout status deployment/user-service    -n audiopro --timeout=180s
           kubectl rollout status deployment/product-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/order-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/mcp-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/frontend -n audiopro --timeout=600s
+          kubectl rollout status deployment/order-service   -n audiopro --timeout=180s
+          kubectl rollout status deployment/mcp-service     -n audiopro --timeout=180s
+          kubectl rollout status deployment/frontend        -n audiopro --timeout=600s
 
       # Debug step on failure — dumps full diagnostic state across all pods
       - name: Debug Cluster on Failure
@@ -231,6 +233,9 @@ jobs:
         run: |
           echo "=== KUBERNETES PODS STATUS ==="
           kubectl get pods -n audiopro -o wide || true
+
+          echo "=== REDIS LOGS ==="
+          kubectl logs -n audiopro deployment/redis --tail=50 || true
 
           echo "=== FRONTEND LOGS ==="
           kubectl logs -n audiopro deployment/frontend --all-containers=true --tail=100 || true
@@ -240,4 +245,3 @@ jobs:
 
           echo "=== ALL POD DESCRIPTIONS ==="
           kubectl describe pods -n audiopro || true
-

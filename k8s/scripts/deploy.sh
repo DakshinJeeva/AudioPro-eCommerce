@@ -26,6 +26,7 @@ case "${1:-help}" in
     done
     log ""
     log "✅ Deployed! Waiting for rollout..."
+    kubectl rollout status deployment/redis          -n "$NS" --timeout=90s
     kubectl rollout status deployment/user-service    -n "$NS" --timeout=120s
     kubectl rollout status deployment/product-service -n "$NS" --timeout=120s
     kubectl rollout status deployment/order-service   -n "$NS" --timeout=120s
@@ -39,8 +40,8 @@ case "${1:-help}" in
     log "Tearing down AudioPro from namespace $NS ..."
     kubectl delete -f "$K8S_DIR/" --ignore-not-found \
       --grace-period=10 2>/dev/null || true
-    log "⚠️  PVC 'uploads-pvc' preserved. To delete it too:"
-    log "    kubectl delete pvc uploads-pvc -n $NS"
+    log "⚠️  PVCs 'uploads-pvc' and 'redis-pvc' preserved. To delete them too:"
+    log "    kubectl delete pvc uploads-pvc redis-pvc -n $NS"
     ;;
 
   status)

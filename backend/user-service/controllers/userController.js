@@ -6,6 +6,17 @@ import generateVerificationToken from "../../utils-service/generateVerificationT
 import { sendVerificationEmail } from "../../utils-service/sendEmail.js";
 import crypto from "crypto";
 import twilio from "twilio";
+import {
+  buildKey,
+  getCache,
+  setCache,
+  delCache,
+  TTL,
+} from "../../utils-service/redisClient.js";
+
+// ── Cache key helpers ─────────────────────────────────────────────────────────
+// Key format: audiopro:user:profile:<userId>
+const userProfileKey = (userId) => buildKey("user", "profile", String(userId));
 
 // Register
 export const registerUser = asyncHandler(async (req, res) => {
@@ -158,25 +169,41 @@ export const authUser = asyncHandler(async (req, res) => {
   }
 });
 
-// Profile
+// Profile  (cache-aside)
 export const getUserProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password");
-  if (user) {
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      isEmailVerified: user.isEmailVerified,
-      phoneNumber: user.phoneNumber,
-      isPhoneVerified: user.isPhoneVerified,
-      addresses: user.addresses,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    });
-  } else {
-    res.status(404).json({ message: "User not found" });
+  const cacheKey = userProfileKey(req.user.id);
+
+  // 1️⃣  Cache HIT → return immediately
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log(`[cache] HIT  ${cacheKey}`);
+    return res.json(cached);
   }
+
+  // 2️⃣  Cache MISS → query MongoDB
+  console.log(`[cache] MISS ${cacheKey}`);
+  const user = await User.findById(req.user.id).select("-password");
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const profile = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    isAdmin: user.isAdmin,
+    isEmailVerified: user.isEmailVerified,
+    phoneNumber: user.phoneNumber,
+    isPhoneVerified: user.isPhoneVerified,
+    addresses: user.addresses,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+
+  // 3️⃣  Populate cache for future requests
+  await setCache(cacheKey, profile, TTL.USER_PROFILE);
+
+  return res.json(profile);
 });
 
 // Verify Email
@@ -364,6 +391,10 @@ export const verifyPhone = asyncHandler(async (req, res) => {
   user.phoneVerificationExpire = undefined;
   await user.save();
 
+  // Invalidate cached profile so next GET reflects the updated phone status
+  await delCache(userProfileKey(req.user.id));
+  console.log(`[cache] EVICT (phone verified) ${userProfileKey(req.user.id)}`);
+
   res.json({
     message: "Phone number verified successfully",
     phoneNumber: user.phoneNumber,
@@ -388,6 +419,10 @@ export const addAddress = asyncHandler(async (req, res) => {
 
   user.addresses.push({ street, city, state, zipCode, country });
   await user.save();
+
+  // Invalidate cached profile so address list stays fresh
+  await delCache(userProfileKey(req.user.id));
+  console.log(`[cache] EVICT (address added) ${userProfileKey(req.user.id)}`);
 
   res.json({ addresses: user.addresses });
 });
@@ -415,6 +450,10 @@ export const removeAddress = asyncHandler(async (req, res) => {
   }
 
   await user.save();
+
+  // Invalidate cached profile so address list stays fresh
+  await delCache(userProfileKey(req.user.id));
+  console.log(`[cache] EVICT (address removed) ${userProfileKey(req.user.id)}`);
 
   res.json({ addresses: user.addresses });
 });
