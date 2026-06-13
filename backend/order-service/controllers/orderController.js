@@ -7,6 +7,21 @@ import {
   updateOrderStatusService,
 } from "../mcp-service/orderService.js";
 import Order from "../models/orderModel.js";
+import {
+  buildKey,
+  getCache,
+  setCache,
+  delCache,
+  delCacheByPattern,
+  TTL,
+} from "../../utils-service/redisClient.js";
+
+// ── Cache key helpers ─────────────────────────────────────────────────────────
+// audiopro:order:history:<userId>   → order list for one user
+// audiopro:order:all                → full order list (admin)
+const orderHistoryKey = (userId) => buildKey("order", "history", String(userId));
+const orderAllKey     = ()       => buildKey("order", "all");
+const orderHistoryPattern = ()   => buildKey("order", "history", "*");
 
 // Create order from cart after payment success
 export const createOrder = asyncHandler(async (req, res) => {
@@ -15,19 +30,57 @@ export const createOrder = asyncHandler(async (req, res) => {
     paymentIntentId: req.body.paymentIntentId,
     address: req.body.address,
   });
+
+  // Invalidate this user's cached history + the admin all-orders cache
+  await Promise.all([
+    delCache(orderHistoryKey(req.user._id)),
+    delCache(orderAllKey()),
+  ]);
+  console.log(`[cache] EVICT (new order) user=${req.user._id}`);
+
   res.status(201).json(order);
 });
 
-// Get all orders for authenticated user
+// Get all orders for authenticated user  (cache-aside)
 export const getUserOrders = asyncHandler(async (req, res) => {
+  const cacheKey = orderHistoryKey(req.user._id);
+
+  // 1️⃣  Cache HIT
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log(`[cache] HIT  ${cacheKey}`);
+    return res.json(cached);
+  }
+
+  // 2️⃣  Cache MISS → query service/DB
+  console.log(`[cache] MISS ${cacheKey}`);
   const orders = await getUserOrdersService({ userId: req.user._id });
-  res.json(orders);
+
+  // 3️⃣  Populate cache
+  await setCache(cacheKey, orders, TTL.ORDER);
+
+  return res.json(orders);
 });
 
-// Get all orders (admin only)
+// Get all orders (admin only)  (cache-aside)
 export const getAllOrders = asyncHandler(async (req, res) => {
+  const cacheKey = orderAllKey();
+
+  // 1️⃣  Cache HIT
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log(`[cache] HIT  ${cacheKey}`);
+    return res.json(cached);
+  }
+
+  // 2️⃣  Cache MISS → query service/DB
+  console.log(`[cache] MISS ${cacheKey}`);
   const orders = await getAllOrdersService();
-  res.json(orders);
+
+  // 3️⃣  Populate cache
+  await setCache(cacheKey, orders, TTL.ORDER);
+
+  return res.json(orders);
 });
 
 // Update order status (admin only)
@@ -36,6 +89,15 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     orderId: req.params.orderId,
     orderStatus: req.body.orderStatus,
   });
+
+  // Evict all-orders cache + every user's history cache
+  // (we don't know which user owns this order without an extra DB lookup)
+  await Promise.all([
+    delCache(orderAllKey()),
+    delCacheByPattern(orderHistoryPattern()),
+  ]);
+  console.log(`[cache] EVICT (status update) orderId=${req.params.orderId}`);
+
   res.json(order);
 });
 
