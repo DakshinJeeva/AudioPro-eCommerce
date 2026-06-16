@@ -2,7 +2,8 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
-import { addProduct, getProducts, updateProductStock, getAllProducts, getProductById, deleteProduct } from "../controllers/productController.js";
+import { addProduct, getProducts, updateProductStock, getAllProducts, getProductById, deleteProduct, checkStock } from "../controllers/productController.js";
+
 import { protect } from "../../middleware-service/authMiddleware.js";
 import { admin } from "../../middleware-service/adminMiddleware.js";
 
@@ -25,6 +26,10 @@ const upload = multer({ storage });
 // Public routes
 router.get("/", getProducts);
 router.get("/:id", getProductById);
+
+// Stock validation (requires auth)
+router.post("/check-stock", protect, checkStock);
+
 
 // Admin routes
 router.post("/", protect, admin, upload.array("images", 6), addProduct);

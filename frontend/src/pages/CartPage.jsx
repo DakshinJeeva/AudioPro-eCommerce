@@ -15,7 +15,7 @@ import {
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_KEY);
 
 // Checkout Form
-const CheckoutForm = ({ amount, address, onSuccess }) => {
+const CheckoutForm = ({ amount, address, cartItems, token, onSuccess }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -38,6 +38,32 @@ const CheckoutForm = ({ amount, address, onSuccess }) => {
     setLoading(true);
 
     try {
+      // ─────────────────────────────────────────────────────────────────
+      // 🆕 STEP 1: Synchronous Stock Check (product-service)
+      // ─────────────────────────────────────────────────────────────────
+      console.log("🔍 Pre-checking inventory stock levels...");
+      const stockPayload = cartItems.map((item) => ({
+        productId: item.product?._id,
+        quantity: item.quantity,
+      }));
+
+      const stockResponse = await apiFetch("/api/product/check-stock", {
+        method: "POST",
+        body: JSON.stringify({ items: stockPayload }),
+      });
+
+      if (!stockResponse.success) {
+        console.error("❌ Stock validation failed:", stockResponse.message);
+        alert(stockResponse.message || "Some items in your cart are no longer available.");
+        setLoading(false);
+        return; // 🛑 STOP. Do NOT charge the card.
+      }
+
+      console.log("✅ Stock verified! Proceeding to payment gateway.");
+
+      // ─────────────────────────────────────────────────────────────────
+      // STEP 2: Create Payment Intent (Only happens if stock is available)
+      // ─────────────────────────────────────────────────────────────────
       console.log("🟢 Creating Payment Intent with amount:", amount);
       const response = await apiFetch("/api/payment/create-payment-intent", {
         method: "POST",
@@ -45,13 +71,15 @@ const CheckoutForm = ({ amount, address, onSuccess }) => {
       });
 
       console.log("🧾 Payment Intent Response:", response);
-
       const { clientSecret } = response;
 
       if (!clientSecret) {
         throw new Error("No clientSecret returned from backend");
       }
 
+      // ─────────────────────────────────────────────────────────────────
+      // STEP 3: Confirm Payment with Stripe
+      // ─────────────────────────────────────────────────────────────────
       console.log("✅ Confirming payment with Stripe");
       const result = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
@@ -64,20 +92,26 @@ const CheckoutForm = ({ amount, address, onSuccess }) => {
       if (result.error) {
         console.error("❌ Payment Error:", result.error.message);
         alert(result.error.message);
+
       } else if (result.paymentIntent.status === "succeeded") {
         console.log("✅ Payment Succeeded");
-        if (onSuccess) onSuccess(result.paymentIntent.id);
+        const paymentIntentId = result.paymentIntent.id;
+
+        // Pass everything to the parent component to trigger the Kafka Order Service flow
+        if (onSuccess) {
+          await onSuccess(paymentIntentId, address);
+        }
+
       } else {
         console.warn("⚠️ Payment status:", result.paymentIntent.status);
       }
     } catch (err) {
-      console.error("🔥 Payment failed:", err);
+      console.error("🔥 Checkout process failed:", err);
       alert(err.message || "Payment failed");
     }
 
     setLoading(false);
   };
-
   return (
     <form onSubmit={handleSubmit} className="mt-4 space-y-4 border p-4 rounded-lg">
       <h3 className="font-semibold">Enter Card Details</h3>
@@ -110,6 +144,7 @@ const CartPage = () => {
   const [cart, setCart] = useState({ items: [] });
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutValidating, setCheckoutValidating] = useState(false);
   const [address, setAddress] = useState({
     street: "",
     city: "",
@@ -271,11 +306,40 @@ const CartPage = () => {
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mt-6">
             <p className="text-lg sm:text-xl font-bold">Total: ₹{totalPrice}</p>
             <button
-              onClick={() => {
-                console.log("🟢 Checkout button clicked");
-                // When opening checkout, preselect first saved address if available
-                if (!checkoutOpen && addresses.length > 0) {
-                  const first = addresses[0];
+              disabled={checkoutValidating}
+              onClick={async () => {
+                // ── If checkout is already open, just close it ────────────
+                if (checkoutOpen) {
+                  setCheckoutOpen(false);
+                  return;
+                }
+
+                console.log("🟢 Checkout button clicked — running pre-flight checks via user-service");
+
+                // ── Guard 1: Cart must have at least one item ─────────────
+                if (cart.items.length === 0) {
+                  alert("Your cart is empty. Please add items before checking out.");
+                  return;
+                }
+
+                // ── Guards 2 & 3: Fetch fresh profile from user-service ───
+                setCheckoutValidating(true);
+                try {
+                  const profile = await apiFetch("/api/users/profile");
+                  console.log("👤 Fresh profile fetched:", profile);
+
+                  if (!profile.isPhoneVerified) {
+                    alert("Your phone number is not verified. Please verify your phone in your Profile before checking out.");
+                    return;
+                  }
+
+                  if (!profile.addresses || profile.addresses.length === 0) {
+                    alert("No saved address found. Please add a shipping address in your Profile before checking out.");
+                    return;
+                  }
+
+                  // All checks passed — preselect first saved address
+                  const first = profile.addresses[0];
                   setSelectedAddressId(first._id || "");
                   setAddress({
                     street: first.street || "",
@@ -284,12 +348,18 @@ const CartPage = () => {
                     zipCode: first.zipCode || "",
                     country: first.country || "",
                   });
+
+                  setCheckoutOpen(true);
+                } catch (err) {
+                  console.error("❌ Profile validation failed:", err);
+                  alert(err.message || "Could not validate your profile. Please try again.");
+                } finally {
+                  setCheckoutValidating(false);
                 }
-                setCheckoutOpen(!checkoutOpen);
               }}
-              className="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition"
+              className="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {checkoutOpen ? "Cancel" : "Checkout"}
+              {checkoutValidating ? "Validating…" : checkoutOpen ? "Cancel" : "Checkout"}
             </button>
           </div>
 
@@ -347,6 +417,8 @@ const CartPage = () => {
                     <CheckoutForm
                       amount={totalPrice * 100}
                       address={address}
+                      cartItems={cart.items}
+                      token={localStorage.getItem("token")}
                       onSuccess={handlePaymentSuccess}
                     />
                   </Elements>

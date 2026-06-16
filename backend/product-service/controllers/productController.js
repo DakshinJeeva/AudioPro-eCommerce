@@ -113,3 +113,38 @@ export const deleteProduct = asyncHandler(async (req, res) => {
 
   res.json({ message: "Product deleted successfully" });
 });
+
+// ── POST /api/product/check-stock ────────────────────────────────────────────
+// Body: { items: [{ productId, quantity }] }
+// Returns: { success, outOfStockItems: [{ name, requested, available }] }
+export const checkStock = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: "No cart items provided" });
+  }
+
+  const outOfStockItems = [];
+
+  for (const { productId, quantity } of items) {
+    const product = await Product.findById(productId).select("name stock");
+    if (!product) {
+      outOfStockItems.push({ name: `Product (${productId})`, requested: quantity, available: 0 });
+    } else if (product.stock < quantity) {
+      outOfStockItems.push({ name: product.name, requested: quantity, available: product.stock });
+    }
+  }
+
+  if (outOfStockItems.length > 0) {
+    const details = outOfStockItems
+      .map((i) => `"${i.name}" (requested: ${i.requested}, available: ${i.available})`)
+      .join(", ");
+    return res.status(200).json({
+      success: false,
+      message: `The following items are out of stock or have insufficient quantity: ${details}`,
+      outOfStockItems,
+    });
+  }
+
+  return res.status(200).json({ success: true, message: "All items are in stock" });
+});
