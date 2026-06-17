@@ -2,10 +2,12 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
-import { addProduct, getProducts, updateProductStock, getAllProducts, getProductById, deleteProduct, checkStock } from "../controllers/productController.js";
+import { addProduct, getProducts, updateProductStock, getAllProducts, getProductById, deleteProduct, checkStock, decrementStockInternal } from "../controllers/productController.js";
+
 
 import { protect } from "../../middleware-service/authMiddleware.js";
 import { admin } from "../../middleware-service/adminMiddleware.js";
+import { protectInternal } from "../../middleware-service/internalMiddleware.js";
 
 
 const router = express.Router();
@@ -30,6 +32,9 @@ router.get("/:id", getProductById);
 // Stock validation (requires auth)
 router.post("/check-stock", protect, checkStock);
 
+// ── Internal: batch stock decrement (called by Kafka product-consumer) ────────
+// Body: { items: [{ productId, quantity }] }  |  Header: x-internal-secret
+router.post("/decrement-stock", protectInternal, decrementStockInternal);
 
 // Admin routes
 router.post("/", protect, admin, upload.array("images", 6), addProduct);

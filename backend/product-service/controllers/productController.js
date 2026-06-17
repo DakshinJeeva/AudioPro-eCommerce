@@ -148,3 +148,38 @@ export const checkStock = asyncHandler(async (req, res) => {
 
   return res.status(200).json({ success: true, message: "All items are in stock" });
 });
+
+// ── POST /api/product/decrement-stock ─────────────────────────────────────────
+// Internal-only: batch decrement stock after a confirmed payment.
+// Body: { items: [{ productId, quantity }] }
+// Header: x-internal-secret
+export const decrementStockInternal = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: "No items provided" });
+  }
+
+  const results = [];
+
+  for (const { productId, quantity } of items) {
+    const product = await Product.findById(productId);
+    if (!product) {
+      results.push({ productId, status: "not_found" });
+      console.warn(`[product-service] Product ${productId} not found — skipping stock decrement`);
+      continue;
+    }
+    if (product.stock < quantity) {
+      // Log anomaly but continue — pre-payment check already validated stock
+      results.push({ productId, name: product.name, status: "insufficient_stock", have: product.stock, needed: quantity });
+      console.error(`[product-service] Insufficient stock for ${product.name}: have ${product.stock}, need ${quantity}`);
+      continue;
+    }
+    await Product.findByIdAndUpdate(productId, { $inc: { stock: -quantity } });
+    results.push({ productId, name: product.name, status: "decremented", by: quantity });
+    console.log(`  ✅ Stock decremented — ${product.name} by ${quantity}`);
+  }
+
+  return res.status(200).json({ success: true, results });
+});
+

@@ -1,4 +1,4 @@
-// backend/controllers/cartController.js
+// backend/cart-service/controllers/cartController.js
 import asyncHandler from "express-async-handler";
 import {
   getCartService,
@@ -51,4 +51,3 @@ export const clearCartInternal = asyncHandler(async (req, res) => {
   console.log(`[cart-service] Cart cleared for user=${userId}`);
   res.status(200).json({ success: true, message: `Cart cleared for user ${userId}` });
 });
-

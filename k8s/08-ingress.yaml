@@ -88,17 +88,17 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: order-service
+                name: cart-service
                 port:
-                  number: 5003
+                  number: 5005
 
           - path: /api/payment
             pathType: Prefix
             backend:
               service:
-                name: order-service
+                name: payment-service
                 port:
-                  number: 5003
+                  number: 5006
 
           # ── MCP SERVICE ──
           - path: /api/chat

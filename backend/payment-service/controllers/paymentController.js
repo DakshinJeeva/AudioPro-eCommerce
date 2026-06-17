@@ -1,4 +1,4 @@
-// backend/order-service/controllers/paymentController.js
+// backend/payment-service/controllers/paymentController.js
 import Stripe from "stripe";
 import Cart from "../models/cartModel.js";
 import { emitPaymentSuccessEvent } from "../../kafka/producer.js";

@@ -219,23 +219,27 @@ const CartPage = () => {
   if (!user) return <p className="text-center mt-20">Please login to view your cart.</p>;
   if (loading) return <p className="text-center mt-20">Loading cart...</p>;
 
-  const handlePaymentSuccess = async (paymentIntentId) => {
+  const handlePaymentSuccess = async (paymentIntentId, address) => {
     console.log("✅ Payment success handler triggered");
     try {
-      // Create order after successful payment
-      await apiFetch("/api/orders", {
+      // ── POST to payment/success ──────────────────────────────────────────
+      // The backend publishes a PAYMENT_SUCCESSFUL Kafka event and returns 200.
+      // All DB side-effects (create order, decrement stock, clear cart, send
+      // email) are handled asynchronously by the Kafka consumers.
+      const result = await apiFetch("/api/payment/success", {
         method: "POST",
         body: JSON.stringify({
           paymentIntentId,
           address,
         }),
       });
-      alert("Order completed successfully!");
+      console.log("📤 Kafka event published:", result);
+      alert("Payment successful! Your order is being processed. You'll receive a confirmation email shortly.");
       setCheckoutOpen(false);
-      fetchCart(); // This will show empty cart since it's cleared on backend
+      fetchCart(); // Cart will be empty shortly (Kafka cart-consumer clears it)
     } catch (err) {
-      console.error("❌ Order creation error:", err);
-      alert(err.message || "Payment succeeded but order creation failed. Please contact support.");
+      console.error("❌ Order processing error:", err);
+      alert(err.message || "Payment succeeded but order processing failed. Please contact support.");
     }
   };
 

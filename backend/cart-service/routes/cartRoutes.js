@@ -1,4 +1,4 @@
-// backend/order-service/routes/cartRoutes.js
+// backend/cart-service/routes/cartRoutes.js
 import express from "express";
 import {
   getCart,

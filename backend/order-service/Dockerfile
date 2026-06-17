@@ -3,11 +3,12 @@
 # Build context: backend/
 #
 # Selective COPY – only what this service actually imports:
-#   order-service/             own controllers, models, routes, mcp-service/, server.js
+#   order-service/             own controllers, models, routes, kafka, server.js
 #   middleware-service/        authMiddleware, adminMiddleware
-#   user-service/models/       userModel.js  (used by authMiddleware + orderService)
-#   product-service/models/    productModel.js (used by cartService + orderService)
-#   utils-service/             sendEmail.js (used by orderService)
+#   user-service/models/       userModel.js  (used by authMiddleware)
+#   product-service/models/    productModel.js (used by populate in orderController)
+#   utils-service/             sendEmail.js (used by Kafka order consumer)
+#   kafka/                     shared Kafka client (order consumer)
 # ──────────────────────────────────────────────────────────────────────────────
 FROM node:20-alpine
 
@@ -26,6 +27,7 @@ COPY middleware-service/      ./middleware-service/
 COPY user-service/models/     ./user-service/models/
 COPY product-service/models/  ./product-service/models/
 COPY utils-service/           ./utils-service/
+COPY kafka/                   ./kafka/
 
 EXPOSE 5003
 

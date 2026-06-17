@@ -23,7 +23,7 @@ const orderHistoryKey = (userId) => buildKey("order", "history", String(userId))
 const orderAllKey     = ()       => buildKey("order", "all");
 const orderHistoryPattern = ()   => buildKey("order", "history", "*");
 
-// Create order from cart after payment success
+// Create order from cart after payment success (called via HTTP from frontend)
 export const createOrder = asyncHandler(async (req, res) => {
   const order = await createOrderService({
     userId: req.user._id,
@@ -40,6 +40,51 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   res.status(201).json(order);
 });
+
+// ── Internal: Create order from Kafka event (called by order-service consumer) ─
+// Body: { userId, paymentIntentId, items, address, totalAmount }
+// No user JWT — protected by x-internal-secret header.
+export const createOrderInternal = asyncHandler(async (req, res) => {
+  const { userId, paymentIntentId, items, address, totalAmount } = req.body;
+
+  if (!userId || !paymentIntentId || !items || !address || !totalAmount) {
+    res.status(400);
+    throw new Error("Missing required fields: userId, paymentIntentId, items, address, totalAmount");
+  }
+
+  // Guard: idempotent — skip if this paymentIntent was already recorded
+  const existing = await Order.findOne({ paymentIntentId });
+  if (existing) {
+    console.warn(`[order-service] Duplicate paymentIntent ${paymentIntentId} — skipping`);
+    return res.status(200).json({ skipped: true, orderId: existing._id });
+  }
+
+  const orderItems = items.map((i) => ({
+    product: i.productId,
+    quantity: i.quantity,
+    price: i.price,
+  }));
+
+  const order = await Order.create({
+    user: userId,
+    items: orderItems,
+    totalAmount,
+    address,
+    paymentStatus: "paid",
+    orderStatus: "processing",
+    paymentIntentId,
+  });
+
+  // Invalidate Redis caches
+  await Promise.all([
+    delCache(orderHistoryKey(userId)),
+    delCache(orderAllKey()),
+  ]);
+  console.log(`[cache] EVICT (kafka order) user=${userId} order=${order._id}`);
+
+  res.status(201).json(order);
+});
+
 
 // Get all orders for authenticated user  (cache-aside)
 export const getUserOrders = asyncHandler(async (req, res) => {

@@ -1,12 +1,13 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# product-service  |  port 5002
+# payment-service  |  port 5006
 # Build context: backend/
 #
 # Selective COPY – only what this service actually imports:
-#   product-service/           own controllers, models, routes, server.js
-#   middleware-service/        authMiddleware, adminMiddleware
+#   payment-service/           own controllers, models, routes, server.js
+#   middleware-service/        authMiddleware
 #   user-service/models/       userModel.js  (used by authMiddleware)
-#   order-service/models/      orderModel.js (used by ratingController)
+#   product-service/models/    productModel.js (used by Cart populate)
+#   kafka/                     shared Kafka client + producer
 # ──────────────────────────────────────────────────────────────────────────────
 FROM node:20-alpine
 
@@ -20,13 +21,12 @@ RUN npm install --omit=dev
 COPY .env .env
 
 # 2. Copy only the directories this service needs
-COPY product-service/            ./product-service/
+COPY payment-service/            ./payment-service/
 COPY middleware-service/         ./middleware-service/
 COPY user-service/models/        ./user-service/models/
-COPY order-service/models/       ./order-service/models/
+COPY product-service/models/     ./product-service/models/
 COPY kafka/                      ./kafka/
 
+EXPOSE 5006
 
-EXPOSE 5002
-
-CMD ["node", "product-service/server.js"]
+CMD ["node", "payment-service/server.js"]

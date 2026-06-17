@@ -1,3 +1,4 @@
+// backend/payment-service/routes/paymentRoutes.js
 import express from "express";
 import dotenv from "dotenv";
 import { createPaymentIntent, handlePaymentSuccess } from "../controllers/paymentController.js";
