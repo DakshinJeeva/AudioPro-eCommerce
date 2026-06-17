@@ -30,6 +30,8 @@ case "${1:-help}" in
     kubectl rollout status deployment/user-service    -n "$NS" --timeout=120s
     kubectl rollout status deployment/product-service -n "$NS" --timeout=120s
     kubectl rollout status deployment/order-service   -n "$NS" --timeout=120s
+    kubectl rollout status deployment/cart-service    -n "$NS" --timeout=120s
+    kubectl rollout status deployment/payment-service -n "$NS" --timeout=120s
     kubectl rollout status deployment/mcp-service     -n "$NS" --timeout=120s
     kubectl rollout status deployment/frontend        -n "$NS" --timeout=120s
     log ""
