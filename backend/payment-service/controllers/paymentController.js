@@ -1,6 +1,7 @@
 // backend/payment-service/controllers/paymentController.js
 import Stripe from "stripe";
 import Cart from "../models/cartModel.js";
+import "../../product-service/models/productModel.js"; // register Product schema for Cart.populate()
 import { emitPaymentSuccessEvent } from "../../kafka/producer.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);

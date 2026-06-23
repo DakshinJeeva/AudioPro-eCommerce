@@ -39,15 +39,16 @@ export const updateCartItem = asyncHandler(async (req, res) => {
   res.json(cart);
 });
 
-// ── Internal: clear cart by userId (called by Kafka cart-consumer) ────────────
-// Body: { userId }  |  Header: x-internal-secret
-export const clearCartInternal = asyncHandler(async (req, res) => {
-  const { userId } = req.body;
-  if (!userId) {
-    res.status(400);
-    throw new Error("userId is required");
-  }
+// ── clearCartByUserId (service function) ──────────────────────────────────────
+// Pure DB logic — no req/res dependency.
+// Called directly by the Kafka consumer and wrapped by the HTTP handler below.
+//
+// @param {string} userId
+// @returns {Promise<void>}
+export const clearCartByUserId = async (userId) => {
+  if (!userId) throw new Error("userId is required");
   await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } });
   console.log(`[cart-service] Cart cleared for user=${userId}`);
-  res.status(200).json({ success: true, message: `Cart cleared for user ${userId}` });
-});
+};
+
+

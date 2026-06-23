@@ -61,7 +61,7 @@ const FeaturedProducts = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const data = await apiFetch("/api/products");
+        const data = await apiFetch("/api/product");
         // Guard: ensure we always store a flat array
         if (Array.isArray(data)) {
           setProducts(data);

@@ -1,16 +1,10 @@
 // product-service/kafka/consumer.js
-// Listens to "payment-events" and calls the product-service's own internal
-// HTTP API to decrement stock — no direct model imports.
+// Listens to "payment-events" and calls updateProductStockById directly —
+// no internal HTTP round-trip needed since we are inside the same process.
 
 import { kafka } from "../../kafka/client.js";
-
-const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || `http://localhost:${process.env.PRODUCT_SERVICE_PORT || 5002}`;
-const INTERNAL_SECRET     = process.env.INTERNAL_SERVICE_SECRET;
-
-const internalHeaders = {
-  "Content-Type": "application/json",
-  "x-internal-secret": INTERNAL_SECRET,
-};
+import Product from "../models/productModel.js";
+import { updateProductStockById } from "../controllers/productController.js";
 
 const consumer = kafka.consumer({ groupId: "product-group" });
 
@@ -27,26 +21,24 @@ export const startProductConsumer = async () => {
       const { paymentIntentId, items } = event;
       console.log(`🤖 [product-service] Decrementing stock | intent=${paymentIntentId}`);
 
-      try {
-        // ── Call POST /api/product/decrement-stock ──────────────────────────
-        const res = await fetch(`${PRODUCT_SERVICE_URL}/api/products/decrement-stock`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({ items }),
-        });
+      for (const { productId, quantity } of items) {
+        try {
+          // Fetch current stock then compute the decremented value
+          const product = await Product.findById(productId).select("stock name");
+          if (!product) {
+            console.warn(`  ⚠️  Product ${productId} not found — skipping`);
+            continue;
+          }
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          console.error(`❌ [product-service] Stock decrement failed (${res.status}):`, data?.message);
-          return;
+          const newStock = Math.max(0, product.stock - quantity);
+          await updateProductStockById(productId, newStock);
+          console.log(`  ✅ ${product.name}: ${product.stock} → ${newStock}`);
+        } catch (err) {
+          console.error(`  ❌ Failed to update stock for ${productId}:`, err.message);
         }
-
-        console.log(`✅ [product-service] Stock update complete | intent=${paymentIntentId}`);
-        data.results?.forEach((r) => console.log(`  • ${r.name || r.productId}: ${r.status}`));
-      } catch (err) {
-        console.error(`❌ [product-service] Consumer error | intent=${paymentIntentId}:`, err.message);
       }
+
+      console.log(`✅ [product-service] Stock update complete | intent=${paymentIntentId}`);
     },
   });
 };

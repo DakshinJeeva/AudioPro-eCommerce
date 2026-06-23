@@ -25,7 +25,7 @@ const ProductDetails = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const data = await apiFetch(`/api/products/${id}`);
+        const data = await apiFetch(`/api/product/${id}`);
         setProduct(data);
 
         // If user is logged in, check if this product is already in wishlist

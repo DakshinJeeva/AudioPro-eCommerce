@@ -73,23 +73,34 @@ export const getProductById = asyncHandler(async (req, res) => {
   res.json(product);
 });
 
-// Update product stock (admin only)
-export const updateProductStock = asyncHandler(async (req, res) => {
-  const { productId } = req.params;
-  const { stock } = req.body;
-
+// ── updateProductStockById (service function) ─────────────────────────────────
+// Pure DB logic — no req/res dependency.
+// Called directly by the Kafka consumer and wrapped by the HTTP handler below.
+//
+// @param {string} productId
+// @param {number} stock  – the new absolute stock value
+// @returns {Promise<Product>}
+export const updateProductStockById = async (productId, stock) => {
   if (stock === undefined || stock < 0) {
-    return res.status(400).json({ message: "Stock must be a non-negative number" });
+    throw new Error("Stock must be a non-negative number");
   }
 
   const product = await Product.findById(productId);
   if (!product) {
-    return res.status(404).json({ message: "Product not found" });
+    throw new Error(`Product not found: ${productId}`);
   }
 
   product.stock = stock;
   await product.save();
+  return product;
+};
 
+// Update product stock (admin only) — HTTP wrapper around updateProductStockById
+export const updateProductStock = asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const { stock } = req.body;
+
+  const product = await updateProductStockById(productId, stock);
   res.json(product);
 });
 
@@ -149,37 +160,4 @@ export const checkStock = asyncHandler(async (req, res) => {
   return res.status(200).json({ success: true, message: "All items are in stock" });
 });
 
-// ── POST /api/product/decrement-stock ─────────────────────────────────────────
-// Internal-only: batch decrement stock after a confirmed payment.
-// Body: { items: [{ productId, quantity }] }
-// Header: x-internal-secret
-export const decrementStockInternal = asyncHandler(async (req, res) => {
-  const { items } = req.body;
-
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ success: false, message: "No items provided" });
-  }
-
-  const results = [];
-
-  for (const { productId, quantity } of items) {
-    const product = await Product.findById(productId);
-    if (!product) {
-      results.push({ productId, status: "not_found" });
-      console.warn(`[product-service] Product ${productId} not found — skipping stock decrement`);
-      continue;
-    }
-    if (product.stock < quantity) {
-      // Log anomaly but continue — pre-payment check already validated stock
-      results.push({ productId, name: product.name, status: "insufficient_stock", have: product.stock, needed: quantity });
-      console.error(`[product-service] Insufficient stock for ${product.name}: have ${product.stock}, need ${quantity}`);
-      continue;
-    }
-    await Product.findByIdAndUpdate(productId, { $inc: { stock: -quantity } });
-    results.push({ productId, name: product.name, status: "decremented", by: quantity });
-    console.log(`  ✅ Stock decremented — ${product.name} by ${quantity}`);
-  }
-
-  return res.status(200).json({ success: true, results });
-});
 

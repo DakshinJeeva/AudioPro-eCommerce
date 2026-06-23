@@ -1,18 +1,16 @@
 // backend/routes/orderRoutes.js
 import express from "express";
-import { createOrder, createOrderInternal, getUserOrders, getAllOrders, updateOrderStatus, exportOrdersCsv } from "../controllers/orderController.js";
+import { createOrderHandler, getUserOrders, getAllOrders, updateOrderStatus, exportOrdersCsv } from "../controllers/orderController.js";
 import { protect } from "../../middleware-service/authMiddleware.js";
 import { admin } from "../../middleware-service/adminMiddleware.js";
-import { protectInternal } from "../../middleware-service/internalMiddleware.js";
 
 const router = express.Router();
 
 // ── Internal (Kafka consumer → order-service) ─────────────────────────────────
 // No user JWT. Uses x-internal-secret header.
-router.post("/internal", protectInternal, createOrderInternal);
 
 // Create order (protected)
-router.post("/", protect, createOrder);
+router.post("/", protect, createOrderHandler);
 
 // Get user's orders (protected)
 router.get("/", protect, getUserOrders);

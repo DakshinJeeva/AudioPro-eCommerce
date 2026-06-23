@@ -21,12 +21,12 @@ const ProductComparison = () => {
       try {
         // Fetch the base product
         if (baseProductId) {
-          const product = await apiFetch(`/api/products/${baseProductId}`);
+          const product = await apiFetch(`/api/product/${baseProductId}`);
           setBaseProduct(product);
         }
 
         // Fetch all products for selection
-        const products = await apiFetch("/api/products");
+        const products = await apiFetch("/api/product");
         setAllProducts(products.filter(p => p._id !== baseProductId));
       } catch (err) {
         setError(err.message || "Failed to load products");

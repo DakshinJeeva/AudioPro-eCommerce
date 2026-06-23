@@ -20,35 +20,14 @@ import {
 // audiopro:order:history:<userId>   → order list for one user
 // audiopro:order:all                → full order list (admin)
 const orderHistoryKey = (userId) => buildKey("order", "history", String(userId));
-const orderAllKey     = ()       => buildKey("order", "all");
-const orderHistoryPattern = ()   => buildKey("order", "history", "*");
+const orderAllKey = () => buildKey("order", "all");
+const orderHistoryPattern = () => buildKey("order", "history", "*");
 
-// Create order from cart after payment success (called via HTTP from frontend)
-export const createOrder = asyncHandler(async (req, res) => {
-  const order = await createOrderService({
-    userId: req.user._id,
-    paymentIntentId: req.body.paymentIntentId,
-    address: req.body.address,
-  });
-
-  // Invalidate this user's cached history + the admin all-orders cache
-  await Promise.all([
-    delCache(orderHistoryKey(req.user._id)),
-    delCache(orderAllKey()),
-  ]);
-  console.log(`[cache] EVICT (new order) user=${req.user._id}`);
-
-  res.status(201).json(order);
-});
-
-// ── Internal: Create order from Kafka event (called by order-service consumer) ─
-// Body: { userId, paymentIntentId, items, address, totalAmount }
-// No user JWT — protected by x-internal-secret header.
-export const createOrderInternal = asyncHandler(async (req, res) => {
-  const { userId, paymentIntentId, items, address, totalAmount } = req.body;
-
+// ── createOrder (service function) ───────────────────────────────────────────
+// Pure DB + cache logic — no req/res dependency.
+// Called directly by the Kafka consumer and wrapped by the HTTP handler below.
+export const createOrder = async ({ userId, paymentIntentId, items, address, totalAmount }) => {
   if (!userId || !paymentIntentId || !items || !address || !totalAmount) {
-    res.status(400);
     throw new Error("Missing required fields: userId, paymentIntentId, items, address, totalAmount");
   }
 
@@ -56,7 +35,7 @@ export const createOrderInternal = asyncHandler(async (req, res) => {
   const existing = await Order.findOne({ paymentIntentId });
   if (existing) {
     console.warn(`[order-service] Duplicate paymentIntent ${paymentIntentId} — skipping`);
-    return res.status(200).json({ skipped: true, orderId: existing._id });
+    return { skipped: true, orderId: existing._id };
   }
 
   const orderItems = items.map((i) => ({
@@ -80,10 +59,23 @@ export const createOrderInternal = asyncHandler(async (req, res) => {
     delCache(orderHistoryKey(userId)),
     delCache(orderAllKey()),
   ]);
-  console.log(`[cache] EVICT (kafka order) user=${userId} order=${order._id}`);
+  console.log(`[cache] EVICT (order created) user=${userId} order=${order._id}`);
 
-  res.status(201).json(order);
+  return { skipped: false, order };
+};
+
+// ── createOrderHandler — HTTP wrapper around createOrder ──────────────────────
+// POST /api/orders/  (protected by JWT)
+export const createOrderHandler = asyncHandler(async (req, res) => {
+  const { userId, paymentIntentId, items, address, totalAmount } = req.body;
+  const result = await createOrder({ userId, paymentIntentId, items, address, totalAmount });
+
+  if (result.skipped) {
+    return res.status(200).json({ skipped: true, orderId: result.orderId });
+  }
+  return res.status(201).json(result.order);
 });
+
 
 
 // Get all orders for authenticated user  (cache-aside)

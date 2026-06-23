@@ -27,7 +27,7 @@ app.use(morgan("dev"));
 app.use("/uploads", express.static(path.resolve(__dirname, "./uploads")));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.use("/api/products", productRoutes);
+app.use("/api/product", productRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 

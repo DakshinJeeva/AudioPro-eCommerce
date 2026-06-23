@@ -1,18 +1,12 @@
 // order-service/kafka/consumer.js
-// Listens to "payment-events" and calls the order-service's own internal HTTP
-// API to create the order — no direct model imports.
+// Listens to "payment-events" and calls createOrder directly —
+// no internal HTTP round-trip needed since we are inside the same process.
 
 import { kafka } from "../../kafka/client.js";
 import { sendOrderEmails } from "../../utils-service/sendEmail.js";
 import Order from "../models/orderModel.js";
-
-const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || `http://localhost:${process.env.ORDER_SERVICE_PORT || 5003}`;
-const INTERNAL_SECRET   = process.env.INTERNAL_SERVICE_SECRET;
-
-const internalHeaders = {
-  "Content-Type": "application/json",
-  "x-internal-secret": INTERNAL_SECRET,
-};
+import "../../product-service/models/productModel.js"; // register Product schema for populate()
+import { createOrder } from "../controllers/orderController.js";
 
 const consumer = kafka.consumer({ groupId: "order-group" });
 
@@ -30,30 +24,17 @@ export const startOrderConsumer = async () => {
       console.log(`🤖 [order-service] Processing PAYMENT_SUCCESSFUL | intent=${paymentIntentId}`);
 
       try {
-        // ── Call POST /api/orders/internal ──────────────────────────────────
-        const res = await fetch(`${ORDER_SERVICE_URL}/api/orders/internal`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({ userId, paymentIntentId, items, address, totalAmount }),
-        });
+        const result = await createOrder({ userId, paymentIntentId, items, address, totalAmount });
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          console.error(`❌ [order-service] Order creation failed (${res.status}):`, data?.message);
-          return;
-        }
-
-        if (data.skipped) {
+        if (result.skipped) {
           console.warn(`⚠️  [order-service] Duplicate — order already exists for intent=${paymentIntentId}`);
           return;
         }
 
-        console.log(`✅ [order-service] Order ${data._id} created for user=${userId}`);
+        console.log(`✅ [order-service] Order ${result.order._id} created for user=${userId}`);
 
         // ── Send confirmation email using the created order's details ───────
-        // Fetch the full populated order for the email template
-        const populated = await Order.findById(data._id)
+        const populated = await Order.findById(result.order._id)
           .populate("items.product")
           .populate("user", "name email");
 

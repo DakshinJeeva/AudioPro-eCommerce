@@ -105,7 +105,7 @@ const AdminDashboard = () => {
   const fetchProducts = async () => {
     setProductsLoading(true);
     try {
-      const data = await apiFetch("/api/products/admin/all");
+      const data = await apiFetch("/api/product/admin/all");
       setProducts(data || []);
       // Initialize stock updates with current stock values
       const updates = {};
@@ -128,7 +128,7 @@ const AdminDashboard = () => {
     }
 
     try {
-      await apiFetch(`/api/products/${productId}/stock`, {
+      await apiFetch(`/api/product/${productId}/stock`, {
         method: "PUT",
         body: JSON.stringify({ stock: newStock }),
       });
@@ -161,7 +161,7 @@ const AdminDashboard = () => {
         formData.append("images", file);
       });
 
-      const _data = await apiFetch("/api/products", {
+      const _data = await apiFetch("/api/product", {
         method: "POST",
         body: formData,
       });
@@ -434,7 +434,7 @@ const AdminDashboard = () => {
                     onClick={async () => {
                       if (!window.confirm("Are you sure you want to delete this product?")) return;
                       try {
-                        await apiFetch(`/api/products/${product._id}`, {
+                        await apiFetch(`/api/product/${product._id}`, {
                           method: "DELETE",
                         });
                         fetchProducts();

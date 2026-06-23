@@ -43,7 +43,7 @@ spec:
                   number: 5001
 
           # ── PRODUCT SERVICE ──
-          - path: /api/products
+          - path: /api/product
             pathType: Prefix
             backend:
               service:
