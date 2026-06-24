@@ -37,22 +37,20 @@ async function apiFetch(url, options = {}) {
  */
 export const resolveProduct = async ({ productId, productName }) => {
   if (productId) {
-    const data = await apiFetch(`${PRODUCT_URL}/api/products/${productId}`);
-    const product = data.product || data;
+    // GET /api/product/:id  — returns the document directly
+    const data = await apiFetch(`${PRODUCT_URL}/api/product/${productId}`);
+    const product = data._id ? data : (data.product || null);
     if (!product?._id) throw new Error(`No product found with ID: ${productId}`);
     return product;
   }
 
   if (productName) {
-    const data = await apiFetch(
-      `${PRODUCT_URL}/api/products?search=${encodeURIComponent(productName)}`
+    // product-service has no search param — fetch all and filter client-side
+    const products = await apiFetch(`${PRODUCT_URL}/api/product`);
+    const list = Array.isArray(products) ? products : (products.products || []);
+    const match = list.find((p) =>
+      p.name?.toLowerCase().includes(productName.toLowerCase())
     );
-    const products = data.products || data;
-    const match = Array.isArray(products)
-      ? products.find((p) =>
-          p.name?.toLowerCase().includes(productName.toLowerCase())
-        )
-      : null;
     if (!match) throw new Error(`No product found with name: "${productName}"`);
     return match;
   }
@@ -83,7 +81,8 @@ export const addToCartService = async ({ token, productId, quantity = 1 }) => {
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ productId, quantity }),
   });
-  return data.cart || data;
+  // cart-service returns the enriched cart directly (not wrapped)
+  return data.items ? data : (data.cart || data);
 };
 
 // ── removeFromCartService ─────────────────────────────────────────────────────
@@ -96,7 +95,7 @@ export const removeFromCartService = async ({ token, productId }) => {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
-  return data.cart || data;
+  return data.items ? data : (data.cart || data);
 };
 
 // ── updateCartItemService ─────────────────────────────────────────────────────
@@ -111,5 +110,5 @@ export const updateCartItemService = async ({ token, productId, quantity }) => {
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ quantity }),
   });
-  return data.cart || data;
+  return data.items ? data : (data.cart || data);
 };

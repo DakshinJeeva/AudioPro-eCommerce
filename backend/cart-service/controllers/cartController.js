@@ -1,7 +1,7 @@
 // backend/cart-service/controllers/cartController.js
 //
 // All cart logic lives here — no dependency on mcp-service.
-// Product lookups use the product-service HTTP API (decoupled).
+// Product lookups use the product-service HTTP API (no Mongoose populate).
 // ─────────────────────────────────────────────────────────────────────────────
 import asyncHandler from "express-async-handler";
 import Cart from "../models/cartModel.js";
@@ -19,25 +19,63 @@ const getItemProductId = (item) => {
 };
 
 /**
- * Fetch a product from product-service.
- * Throws on 4xx / 5xx or missing product.
+ * Fetch a single product from product-service.
+ * Route: GET /api/product/:id  → returns product object directly.
+ * Throws on non-2xx or missing product.
  */
 async function fetchProduct(productId) {
-  const res  = await fetch(`${PRODUCT_URL}/api/products/${productId}`);
+  const res  = await fetch(`${PRODUCT_URL}/api/product/${productId}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || `Product service error ${res.status}`);
-  const product = data.product || data;
+  // getProductById returns the document directly (not wrapped in { product })
+  const product = data._id ? data : (data.product || null);
   if (!product?._id) throw new Error(`Product not found: ${productId}`);
   return product;
 }
 
+/**
+ * Enrich cart items with full product details by calling product-service
+ * for each unique productId. Returns a plain cart-shaped object.
+ *
+ * This replaces Mongoose .populate("items.product") so we never need the
+ * Product schema registered in this process.
+ */
+async function enrichCart(cart) {
+  if (!cart || !cart.items?.length) return cart || { items: [] };
+
+  const enrichedItems = await Promise.all(
+    cart.items.map(async (item) => {
+      const productId = getItemProductId(item);
+      try {
+        const product = await fetchProduct(productId);
+        return {
+          _id:      item._id,
+          quantity: item.quantity,
+          product,              // full product object
+        };
+      } catch {
+        // product might be deleted; keep item stub so cart doesn't crash
+        return {
+          _id:      item._id,
+          quantity: item.quantity,
+          product:  { _id: productId, name: "Unavailable", price: 0, stock: 0 },
+        };
+      }
+    })
+  );
+
+  return {
+    _id:   cart._id,
+    user:  cart.user,
+    items: enrichedItems,
+  };
+}
+
 // ── GET /api/cart ─────────────────────────────────────────────────────────────
 export const getCart = asyncHandler(async (req, res) => {
-  const cart = await Cart
-    .findOne({ user: req.user._id })
-    .populate("items.product");
-
-  res.json(cart || { items: [] });
+  const cart = await Cart.findOne({ user: req.user._id });
+  const enriched = await enrichCart(cart);
+  res.json(enriched);
 });
 
 // ── POST /api/cart/add ────────────────────────────────────────────────────────
@@ -50,16 +88,13 @@ export const addToCart = asyncHandler(async (req, res) => {
     throw new Error("productId is required");
   }
 
-  // Validate product exists and has stock
+  // Validate product exists and has enough stock
   const product = await fetchProduct(productId);
 
-  let cart = await Cart
-    .findOne({ user: req.user._id })
-    .populate("items.product");
-
+  let cart = await Cart.findOne({ user: req.user._id });
   if (!cart) cart = await Cart.create({ user: req.user._id, items: [] });
 
-  const idx        = cart.items.findIndex((i) => getItemProductId(i) === productId);
+  const idx        = cart.items.findIndex((i) => getItemProductId(i) === productId.toString());
   const currentQty = idx > -1 ? cart.items[idx].quantity : 0;
   const newQty     = currentQty + qty;
 
@@ -76,8 +111,8 @@ export const addToCart = asyncHandler(async (req, res) => {
 
   await cart.save();
 
-  const populated = await Cart.findById(cart._id).populate("items.product");
-  res.json(populated);
+  const enriched = await enrichCart(cart);
+  res.json(enriched);
 });
 
 // ── POST /api/cart/remove ─────────────────────────────────────────────────────
@@ -101,8 +136,8 @@ export const removeFromCart = asyncHandler(async (req, res) => {
 
   await cart.save();
 
-  const populated = await Cart.findById(cart._id).populate("items.product");
-  res.json(populated);
+  const enriched = await enrichCart(cart);
+  res.json(enriched);
 });
 
 // ── POST /api/cart/update ─────────────────────────────────────────────────────
@@ -143,8 +178,8 @@ export const updateCartItem = asyncHandler(async (req, res) => {
   item.quantity = quantity;
   await cart.save();
 
-  const populated = await Cart.findById(cart._id).populate("items.product");
-  res.json(populated);
+  const enriched = await enrichCart(cart);
+  res.json(enriched);
 });
 
 // ── clearCartByUserId ─────────────────────────────────────────────────────────
