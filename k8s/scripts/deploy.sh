@@ -27,7 +27,6 @@ case "${1:-help}" in
     log ""
     log "✅ Deployed! Waiting for rollout..."
     kubectl rollout status deployment/redis          -n "$NS" --timeout=90s
-    kubectl rollout status deployment/zookeeper       -n "$NS" --timeout=120s
     kubectl rollout status deployment/kafka           -n "$NS" --timeout=180s
     kubectl rollout status deployment/user-service    -n "$NS" --timeout=120s
     kubectl rollout status deployment/product-service -n "$NS" --timeout=120s
