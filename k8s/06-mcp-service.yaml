@@ -32,12 +32,18 @@ spec:
         tier: backend
     spec:
       initContainers:
-        - name: wait-for-order-service
+        - name: wait-for-dependencies
           image: busybox:1.36
           command:
             - sh
             - -c
             - |
+              until wget -qO- http://cart-service:5005/health; do
+                echo "Waiting for cart-service..."; sleep 3;
+              done
+              until wget -qO- http://product-service:5002/health; do
+                echo "Waiting for product-service..."; sleep 3;
+              done
               until wget -qO- http://order-service:5003/health; do
                 echo "Waiting for order-service..."; sleep 3;
               done
@@ -50,6 +56,13 @@ spec:
           envFrom:
             - secretRef:
                 name: audiopro-secrets
+          env:
+            - name: CART_SERVICE_URL
+              value: "http://cart-service:5005"
+            - name: PRODUCT_SERVICE_URL
+              value: "http://product-service:5002"
+            - name: ORDER_SERVICE_URL
+              value: "http://order-service:5003"
           resources:
             requests:
               cpu: "50m"

@@ -2,12 +2,16 @@
 # cart-service  |  port 5005
 # Build context: backend/
 #
-# Selective COPY – only what this service actually imports:
-#   cart-service/              own controllers, models, routes, kafka, server.js
-#   middleware-service/        authMiddleware, internalMiddleware
-#   user-service/models/       userModel.js  (used by authMiddleware)
-#   product-service/models/    productModel.js (used by cartService)
-#   kafka/                     shared Kafka client + producer
+# Fully decoupled from product-service — product lookups go through HTTP API.
+#
+# Directories copied:
+#   cart-service/       own controllers, models, routes, kafka, server.js
+#   middleware-service/ authMiddleware (JWT verification)
+#   user-service/models/userModel.js  (used by authMiddleware)
+#   kafka/              shared Kafka client
+#
+# Runtime env vars:
+#   PRODUCT_SERVICE_URL  http://product-service:5002  (default)
 # ──────────────────────────────────────────────────────────────────────────────
 FROM node:20-alpine
 
@@ -17,14 +21,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Copy shared env file so dotenv.config() can read it at /app/.env
+# Copy shared env file (fallback for non-K8s runs)
 COPY .env .env
 
-# 2. Copy only the directories this service needs
+# 2. Copy only what this service needs
 COPY cart-service/               ./cart-service/
 COPY middleware-service/         ./middleware-service/
 COPY user-service/models/        ./user-service/models/
-COPY product-service/models/     ./product-service/models/
 COPY kafka/                      ./kafka/
 
 EXPOSE 5005
