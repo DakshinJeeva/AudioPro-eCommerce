@@ -186,6 +186,27 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
+      # ── Pull third-party images that use imagePullPolicy: Never ─────────────
+      # apache/kafka:3.9.0 has imagePullPolicy: Never in 13-kafka.yaml, so it
+      # must be pulled on the runner and loaded into Kind — it cannot be fetched
+      # from Docker Hub at runtime inside the cluster.
+      # The image is cached in GHA cache to avoid re-downloading ~500 MB each run.
+      - name: Cache Kafka Docker Image
+        id: cache-kafka
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kafka-image.tar
+          key: kafka-image-apache-kafka-3.9.0
+
+      - name: Pull & Save Kafka Image (if not cached)
+        if: steps.cache-kafka.outputs.cache-hit != 'true'
+        run: |
+          docker pull apache/kafka:3.9.0
+          docker save apache/kafka:3.9.0 -o /tmp/kafka-image.tar
+
+      - name: Load Kafka Image from Cache
+        run: docker load -i /tmp/kafka-image.tar
+
       # ── Load all images into Kind ─────────────────────────────────────────────
       - name: Load Images into Kind Node Engine
         run: |
@@ -196,6 +217,7 @@ jobs:
           kind load docker-image ${{ env.IMAGE_PREFIX }}/payment-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/mcp-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/frontend:local
+          kind load docker-image apache/kafka:3.9.0
 
       # ── NGINX Ingress Controller ──────────────────────────────────────────────
       - name: Prepare Kind Node for Ingress
