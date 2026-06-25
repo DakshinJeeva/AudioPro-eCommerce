@@ -30,6 +30,7 @@ metadata:
 data:
   Upgrade: "$http_upgrade"
   Connection: "upgrade"
+  Content-Type: "$http_content_type"
 
 ---
 # ── 2. Patch the ingress-nginx controller ConfigMap ───────────────────────────

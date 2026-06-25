@@ -46,7 +46,7 @@ export const createOrderService = async ({ token, paymentIntentId, address }) =>
  * Delegates to: GET order-service /api/orders/myorders
  */
 export const getUserOrdersService = async ({ token }) => {
-  const data = await apiFetch(`${ORDER_URL}/api/orders/myorders`, {
+  const data = await apiFetch(`${ORDER_URL}/api/orders`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return data.orders || data;

@@ -19,9 +19,12 @@ const PRODUCT_URL = process.env.PRODUCT_SERVICE_URL || "http://product-service:5
  * service returns a non-2xx status.
  */
 async function apiFetch(url, options = {}) {
+  // Merge headers first, then spread the rest of options (excluding headers)
+  // so that the Content-Type we set here is never overwritten by the caller.
+  const { headers: callerHeaders = {}, ...restOptions } = options;
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+    headers: { "Content-Type": "application/json", ...callerHeaders },
+    ...restOptions,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -91,9 +94,11 @@ export const addToCartService = async ({ token, productId, quantity = 1 }) => {
  * Delegates to: DELETE cart-service /api/cart/remove/:productId
  */
 export const removeFromCartService = async ({ token, productId }) => {
-  const data = await apiFetch(`${CART_URL}/api/cart/remove/${productId}`, {
-    method: "DELETE",
+  // Route is POST /api/cart/remove with productId in the body
+  const data = await apiFetch(`${CART_URL}/api/cart/remove`, {
+    method: "POST",
     headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ productId }),
   });
   return data.items ? data : (data.cart || data);
 };
@@ -105,10 +110,11 @@ export const removeFromCartService = async ({ token, productId }) => {
  */
 export const updateCartItemService = async ({ token, productId, quantity }) => {
   if (quantity < 1) throw new Error("Quantity must be at least 1");
-  const data = await apiFetch(`${CART_URL}/api/cart/update/${productId}`, {
-    method: "PUT",
+  // Route is POST /api/cart/update with productId and quantity in the body
+  const data = await apiFetch(`${CART_URL}/api/cart/update`, {
+    method: "POST",
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ quantity }),
+    body: JSON.stringify({ productId, quantity }),
   });
   return data.items ? data : (data.cart || data);
 };
