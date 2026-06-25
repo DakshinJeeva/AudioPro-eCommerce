@@ -45,7 +45,7 @@ jobs:
         working-directory: frontend
         run: npm test --if-present
 
-  # ── 2. Build & Validate via Kind ──────────────────────────────────────────────
+  # ── 2. Build & Validate via Kind ─────────────────────────────────────────────
   build-and-kind-test:
     name: Build & Verify Cluster Ecosystem
     runs-on: ubuntu-latest
@@ -54,6 +54,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ── Generate backend/.env from GitHub Secrets ────────────────────────────
       - name: Create backend .env from GitHub Secrets
         run: |
           printf '%s\n' \
@@ -62,10 +63,22 @@ jobs:
             'PRODUCT_SERVICE_PORT=5002' \
             'ORDER_SERVICE_PORT=5003' \
             'MCP_SERVICE_PORT=5004' \
+            'CART_SERVICE_PORT=5005' \
+            'PAYMENT_SERVICE_PORT=5006' \
             'FRONTEND_URL=http://localhost:5173' \
             'JWT_EXPIRES_IN=7d' \
+            'KAFKA_BROKER=kafka:9092' \
+            'REDIS_URL=redis://redis:6379' \
+            'CART_SERVICE_URL=http://cart-service:5005' \
+            'ORDER_SERVICE_URL=http://order-service:5003' \
+            'PRODUCT_SERVICE_URL=http://product-service:5002' \
+            'VITE_USER_API_URL=http://user-service:5001' \
+            'VITE_PRODUCT_API_URL=http://product-service:5002' \
+            'VITE_ORDER_API_URL=http://order-service:5003' \
+            'VITE_MCP_API_URL=http://mcp-service:5004' \
             "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
             "MONGO_URI=${{ secrets.MONGO_URI }}" \
+            "INTERNAL_SERVICE_SECRET=${{ secrets.INTERNAL_SERVICE_SECRET }}" \
             "SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}" \
             "SENDGRID_FROM_EMAIL=${{ secrets.SENDGRID_FROM_EMAIL }}" \
             "CONTACT_EMAIL_USER=${{ secrets.CONTACT_EMAIL_USER }}" \
@@ -76,39 +89,34 @@ jobs:
             "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" \
             "TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}" \
             "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
-            'VITE_USER_API_URL=http://user-service:5001' \
-            'VITE_PRODUCT_API_URL=http://product-service:5002' \
-            'VITE_ORDER_API_URL=http://order-service:5003' \
-            'VITE_MCP_API_URL=http://mcp-service:5004' \
-            'REDIS_URL=redis://redis:6379' \
           > backend/.env
 
-      # Set up local multi-stage caching layers to keep execution times low
+      # ── Docker Buildx for layer caching ──────────────────────────────────────
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # SPIN UP A TEMP KIND CLUSTER INSIDE GITHUB ACTIONS RUNNER
+      # ── Spin up Kind cluster ──────────────────────────────────────────────────
       - name: Create Kind Cluster
         uses: helm/kind-action@v1.10.0
         with:
-          version: "v0.23.0"       # Keeps matching modern cluster environments
+          version: "v0.23.0"
           kubectl_version: "v1.30.0"
-          cluster_name: kind        # Must be 'kind' — default is 'chart-testing', breaking 'kind load docker-image'
+          cluster_name: kind   # Must be 'kind' — 'kind load docker-image' relies on this name
 
       - name: Verify Cluster Connectivity
         run: |
           kubectl cluster-info
           kubectl get nodes
 
-      # BUILD IMAGES LOCALLY INSIDE THE GITHUB RUNNER WORKSPACE
+      # ── Build all service images ──────────────────────────────────────────────
       - name: Build Local User Service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/user-service/Dockerfile
-          push: false # Do not push to docker hub, keep it raw inside the runner
+          push: false
           tags: ${{ env.IMAGE_PREFIX }}/user-service:local
-          load: true  # Exports the container directly to the local runner's docker daemon
+          load: true
           cache-from: type=gha,scope=user-service
           cache-to: type=gha,scope=user-service,mode=max
 
@@ -134,6 +142,28 @@ jobs:
           cache-from: type=gha,scope=order-service
           cache-to: type=gha,scope=order-service,mode=max
 
+      - name: Build Local Cart Service
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          file: backend/cart-service/Dockerfile
+          push: false
+          tags: ${{ env.IMAGE_PREFIX }}/cart-service:local
+          load: true
+          cache-from: type=gha,scope=cart-service
+          cache-to: type=gha,scope=cart-service,mode=max
+
+      - name: Build Local Payment Service
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          file: backend/payment-service/Dockerfile
+          push: false
+          tags: ${{ env.IMAGE_PREFIX }}/payment-service:local
+          load: true
+          cache-from: type=gha,scope=payment-service
+          cache-to: type=gha,scope=payment-service,mode=max
+
       - name: Build Local MCP Service
         uses: docker/build-push-action@v5
         with:
@@ -156,16 +186,18 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
-      # LOAD THE BUILT TARGET IMAGES STRAIGHT INTO KIND CACHE
+      # ── Load all images into Kind ─────────────────────────────────────────────
       - name: Load Images into Kind Node Engine
         run: |
           kind load docker-image ${{ env.IMAGE_PREFIX }}/user-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/product-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/order-service:local
+          kind load docker-image ${{ env.IMAGE_PREFIX }}/cart-service:local
+          kind load docker-image ${{ env.IMAGE_PREFIX }}/payment-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/mcp-service:local
           kind load docker-image ${{ env.IMAGE_PREFIX }}/frontend:local
 
-      # INSTALL NGINX INGRESS CONTROLLER
+      # ── NGINX Ingress Controller ──────────────────────────────────────────────
       - name: Prepare Kind Node for Ingress
         run: |
           echo "🔧 Labeling node for ingress..."
@@ -195,19 +227,14 @@ jobs:
               exit 1
             }
 
-      # DRY-RUN AND DEPLOY VALIDATION TEST
+      # ── Deploy & verify all manifests ────────────────────────────────────────
       - name: Test Apply App Manifests to Kind
         run: |
-          # 1. Stand up resources
+          # 1. Create namespace (idempotent)
           kubectl create namespace audiopro --dry-run=client -o yaml | kubectl apply -f -
 
-          # 2. CREATE BOTH PLURAL AND SINGULAR SECRETS TO SATISFY ALL MANIFESTS ✅
+          # 2. Create the single audiopro-secrets Secret used by all manifests
           kubectl create secret generic audiopro-secrets \
-            --namespace=audiopro \
-            --from-env-file=backend/.env \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl create secret generic audiopro-secret \
             --namespace=audiopro \
             --from-env-file=backend/.env \
             --dry-run=client -o yaml | kubectl apply -f -
@@ -215,33 +242,65 @@ jobs:
           # 3. Apply local storage mock patch if present
           if [ -f k8s/local-storage-alias.yaml ]; then kubectl apply -f k8s/local-storage-alias.yaml; fi
 
-          # 4. Apply all app manifests — ingress-nginx namespace now exists
+          # 4. Apply all k8s manifests (ordered by filename prefix 00–13)
           kubectl apply -f k8s/
 
-          # 5. Wait up to 300 seconds to verify pods spin up cleanly
-          echo "⏳ Waiting for cluster convergence status..."
-          kubectl rollout status deployment/redis         -n audiopro --timeout=90s
+          # 5. Wait for infrastructure pods first
+          echo "⏳ Waiting for infrastructure pods..."
+          kubectl rollout status deployment/redis -n audiopro --timeout=90s
+          kubectl rollout status deployment/kafka -n audiopro --timeout=120s
+
+          # 6. Wait for backend microservices
+          echo "⏳ Waiting for backend microservices..."
           kubectl rollout status deployment/user-service    -n audiopro --timeout=180s
           kubectl rollout status deployment/product-service -n audiopro --timeout=180s
           kubectl rollout status deployment/order-service   -n audiopro --timeout=180s
+          kubectl rollout status deployment/cart-service    -n audiopro --timeout=180s
+          kubectl rollout status deployment/payment-service -n audiopro --timeout=180s
           kubectl rollout status deployment/mcp-service     -n audiopro --timeout=180s
-          kubectl rollout status deployment/frontend        -n audiopro --timeout=600s
 
-      # Debug step on failure — dumps full diagnostic state across all pods
+          # 7. Wait for frontend (Vite dev server takes longer)
+          echo "⏳ Waiting for frontend..."
+          kubectl rollout status deployment/frontend -n audiopro --timeout=600s
+
+          echo "✅ All deployments healthy!"
+
+      # ── Debug diagnostics on any failure ────────────────────────────────────
       - name: Debug Cluster on Failure
         if: failure()
         run: |
           echo "=== KUBERNETES PODS STATUS ==="
           kubectl get pods -n audiopro -o wide || true
 
-          echo "=== REDIS LOGS ==="
-          kubectl logs -n audiopro deployment/redis --tail=50 || true
+          echo "=== EVENTS (sorted by time) ==="
+          kubectl get events -n audiopro --sort-by='.lastTimestamp' | tail -40 || true
 
-          echo "=== FRONTEND LOGS ==="
-          kubectl logs -n audiopro deployment/frontend --all-containers=true --tail=100 || true
+          echo "=== KAFKA LOGS ==="
+          kubectl logs -n audiopro deployment/kafka --tail=50 || true
+
+          echo "=== REDIS LOGS ==="
+          kubectl logs -n audiopro deployment/redis --tail=30 || true
 
           echo "=== USER SERVICE LOGS ==="
           kubectl logs -n audiopro deployment/user-service --all-containers=true --tail=50 || true
+
+          echo "=== PRODUCT SERVICE LOGS ==="
+          kubectl logs -n audiopro deployment/product-service --all-containers=true --tail=50 || true
+
+          echo "=== ORDER SERVICE LOGS ==="
+          kubectl logs -n audiopro deployment/order-service --all-containers=true --tail=50 || true
+
+          echo "=== CART SERVICE LOGS ==="
+          kubectl logs -n audiopro deployment/cart-service --all-containers=true --tail=50 || true
+
+          echo "=== PAYMENT SERVICE LOGS ==="
+          kubectl logs -n audiopro deployment/payment-service --all-containers=true --tail=50 || true
+
+          echo "=== MCP SERVICE LOGS ==="
+          kubectl logs -n audiopro deployment/mcp-service --all-containers=true --tail=50 || true
+
+          echo "=== FRONTEND LOGS ==="
+          kubectl logs -n audiopro deployment/frontend --all-containers=true --tail=100 || true
 
           echo "=== ALL POD DESCRIPTIONS ==="
           kubectl describe pods -n audiopro || true
