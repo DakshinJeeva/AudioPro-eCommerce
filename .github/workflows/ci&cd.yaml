@@ -1,4 +1,4 @@
-name: CI — CD
+name: CI / CD — EKS Deploy
 
 on:
   push:
@@ -6,14 +6,22 @@ on:
   pull_request:
     branches: [main]
 
+# ── Shared environment ──────────────────────────────────────────────────────────
 env:
-  REGISTRY: docker.io
-  IMAGE_PREFIX: audiopro-local
+  AWS_REGION:       ap-south-2
+  AWS_ACCOUNT_ID:   "227037612486"
+  ECR_REGISTRY:     227037612486.dkr.ecr.ap-south-2.amazonaws.com
+  ECR_NAMESPACE:    audiopro
+  EKS_CLUSTER_NAME: audiopro-prod
+  K8S_NS:           audiopro
   # Opt all JS-based actions into Node 24 to silence deprecation warnings
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── 1. Lint / Test ───────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 1 — Lint & Test
+  # Runs on every push and every PR. Does NOT require AWS credentials.
+  # ────────────────────────────────────────────────────────────────────────────
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
@@ -32,7 +40,6 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      # Expand this step when you add Jest / Mocha tests
       - name: Run backend tests
         working-directory: backend
         run: npm test --if-present
@@ -45,284 +52,305 @@ jobs:
         working-directory: frontend
         run: npm test --if-present
 
-  # ── 2. Build & Validate via Kind ─────────────────────────────────────────────
-  build-and-kind-test:
-    name: Build & Verify Cluster Ecosystem
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Build & Push to ECR
+  # Runs only on pushes to main (not PRs — avoids pushing unreviewed code).
+  # Builds every service image and pushes to Amazon ECR ap-south-2.
+  # ────────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push to ECR
     runs-on: ubuntu-latest
     needs: lint-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Required for OIDC auth (no long-lived AWS keys stored in secrets)
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── Generate backend/.env from GitHub Secrets ────────────────────────────
-      - name: Create backend .env from GitHub Secrets
-        run: |
-          printf '%s\n' \
-            'PORT=5000' \
-            'USER_SERVICE_PORT=5001' \
-            'PRODUCT_SERVICE_PORT=5002' \
-            'ORDER_SERVICE_PORT=5003' \
-            'MCP_SERVICE_PORT=5004' \
-            'CART_SERVICE_PORT=5005' \
-            'PAYMENT_SERVICE_PORT=5006' \
-            'FRONTEND_URL=http://localhost:5173' \
-            'JWT_EXPIRES_IN=7d' \
-            'KAFKA_BROKER=kafka:9092' \
-            'REDIS_URL=redis://redis:6379' \
-            'CART_SERVICE_URL=http://cart-service:5005' \
-            'ORDER_SERVICE_URL=http://order-service:5003' \
-            'PRODUCT_SERVICE_URL=http://product-service:5002' \
-            'VITE_USER_API_URL=http://user-service:5001' \
-            'VITE_PRODUCT_API_URL=http://product-service:5002' \
-            'VITE_ORDER_API_URL=http://order-service:5003' \
-            'VITE_MCP_API_URL=http://mcp-service:5004' \
-            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
-            "MONGO_URI=${{ secrets.MONGO_URI }}" \
-            "INTERNAL_SERVICE_SECRET=${{ secrets.INTERNAL_SERVICE_SECRET }}" \
-            "SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}" \
-            "SENDGRID_FROM_EMAIL=${{ secrets.SENDGRID_FROM_EMAIL }}" \
-            "CONTACT_EMAIL_USER=${{ secrets.CONTACT_EMAIL_USER }}" \
-            "CONTACT_EMAIL_PASS=${{ secrets.CONTACT_EMAIL_PASS }}" \
-            "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" \
-            "VITE_STRIPE_KEY=${{ secrets.VITE_STRIPE_KEY }}" \
-            "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" \
-            "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" \
-            "TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}" \
-            "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
-          > backend/.env
+      # ── AWS Authentication via OIDC (keyless) ───────────────────────────────
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsECRDeploy
+          aws-region: ${{ env.AWS_REGION }}
 
-      # ── Docker Buildx for layer caching ──────────────────────────────────────
+      # ── Authenticate Docker to ECR ──────────────────────────────────────────
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ env.AWS_ACCOUNT_ID }}
+
+      # ── Docker Buildx (multi-platform + GHA layer cache) ────────────────────
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── Spin up Kind cluster ──────────────────────────────────────────────────
-      - name: Create Kind Cluster
-        uses: helm/kind-action@v1.10.0
-        with:
-          version: "v0.23.0"
-          kubectl_version: "v1.30.0"
-          cluster_name: kind   # Must be 'kind' — 'kind load docker-image' relies on this name
-
-      - name: Verify Cluster Connectivity
-        run: |
-          kubectl cluster-info
-          kubectl get nodes
-
-      # ── Build all service images ──────────────────────────────────────────────
-      - name: Build Local User Service
+      # ── Build & Push: User Service ──────────────────────────────────────────
+      - name: Build & Push user-service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/user-service/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/user-service:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/user-service:latest
           cache-from: type=gha,scope=user-service
           cache-to: type=gha,scope=user-service,mode=max
 
-      - name: Build Local Product Service
+      # ── Build & Push: Product Service ──────────────────────────────────────
+      - name: Build & Push product-service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/product-service/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/product-service:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/product-service:latest
           cache-from: type=gha,scope=product-service
           cache-to: type=gha,scope=product-service,mode=max
 
-      - name: Build Local Order Service
+      # ── Build & Push: Order Service ─────────────────────────────────────────
+      - name: Build & Push order-service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/order-service/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/order-service:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/order-service:latest
           cache-from: type=gha,scope=order-service
           cache-to: type=gha,scope=order-service,mode=max
 
-      - name: Build Local Cart Service
+      # ── Build & Push: Cart Service ──────────────────────────────────────────
+      - name: Build & Push cart-service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/cart-service/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/cart-service:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/cart-service:latest
           cache-from: type=gha,scope=cart-service
           cache-to: type=gha,scope=cart-service,mode=max
 
-      - name: Build Local Payment Service
+      # ── Build & Push: Payment Service ───────────────────────────────────────
+      - name: Build & Push payment-service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/payment-service/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/payment-service:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/payment-service:latest
           cache-from: type=gha,scope=payment-service
           cache-to: type=gha,scope=payment-service,mode=max
 
-      - name: Build Local MCP Service
+      # ── Build & Push: MCP Service ────────────────────────────────────────────
+      - name: Build & Push mcp-service
         uses: docker/build-push-action@v5
         with:
           context: backend
           file: backend/mcp-service/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/mcp-service:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/mcp-service:latest
           cache-from: type=gha,scope=mcp-service
           cache-to: type=gha,scope=mcp-service,mode=max
 
-      - name: Build Local Frontend
+      # ── Build & Push: Frontend ──────────────────────────────────────────────
+      - name: Build & Push frontend
         uses: docker/build-push-action@v5
         with:
           context: frontend
           file: frontend/Dockerfile
-          push: false
-          tags: ${{ env.IMAGE_PREFIX }}/frontend:local
-          load: true
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_NAMESPACE }}/frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
-      # ── Pull third-party images that use imagePullPolicy: Never ─────────────
-      # apache/kafka:3.9.0 has imagePullPolicy: Never in 13-kafka.yaml, so it
-      # must be pulled on the runner and loaded into Kind — it cannot be fetched
-      # from Docker Hub at runtime inside the cluster.
-      # The image is cached in GHA cache to avoid re-downloading ~500 MB each run.
-      - name: Cache Kafka Docker Image
-        id: cache-kafka
-        uses: actions/cache@v4
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 3 — Deploy to EKS
+  # Runs only after build-and-push succeeds.
+  # Updates kubeconfig, applies k8s/eks/ manifests, triggers rolling restarts,
+  # and waits for all deployments to become healthy.
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy-to-eks:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── AWS Authentication ──────────────────────────────────────────────────
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          path: /tmp/kafka-image.tar
-          key: kafka-image-apache-kafka-3.9.0
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsECRDeploy
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Pull & Save Kafka Image (if not cached)
-        if: steps.cache-kafka.outputs.cache-hit != 'true'
+      # ── Point kubectl at the EKS cluster ────────────────────────────────────
+      - name: Update kubeconfig for EKS
         run: |
-          docker pull apache/kafka:3.9.0
-          docker save apache/kafka:3.9.0 -o /tmp/kafka-image.tar
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+          echo "✅ kubectl context: $(kubectl config current-context)"
 
-      - name: Load Kafka Image from Cache
-        run: docker load -i /tmp/kafka-image.tar
+      # ── Ensure namespace exists ──────────────────────────────────────────────
+      - name: Apply namespace
+        run: kubectl apply -f k8s/eks/00-namespace.yaml
 
-      # ── Load all images into Kind ─────────────────────────────────────────────
-      - name: Load Images into Kind Node Engine
+      # ── Sync K8s secrets from GitHub Secrets ────────────────────────────────
+      # Writes all app secrets directly as a Kubernetes Secret object.
+      # Using --dry-run=client | apply is idempotent — safe to run every deploy.
+      - name: Sync audiopro-secrets to EKS
         run: |
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/user-service:local
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/product-service:local
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/order-service:local
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/cart-service:local
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/payment-service:local
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/mcp-service:local
-          kind load docker-image ${{ env.IMAGE_PREFIX }}/frontend:local
-          kind load docker-image apache/kafka:3.9.0
-
-      # ── NGINX Ingress Controller ──────────────────────────────────────────────
-      - name: Prepare Kind Node for Ingress
-        run: |
-          echo "🔧 Labeling node for ingress..."
-          kubectl label node kind-control-plane ingress-ready=true
-
-          echo "🔍 Verifying labels..."
-          kubectl get nodes --show-labels
-
-      - name: Install NGINX Ingress Controller for Kind
-        run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/kind/deploy.yaml
-
-          echo "⏳ Waiting for ingress-nginx admission webhook jobs to complete..."
-          kubectl wait --namespace ingress-nginx \
-            --for=condition=complete job \
-            --selector=app.kubernetes.io/component=admission-webhook \
-            --timeout=60s || true
-
-          echo "⏳ Waiting for ingress-nginx controller pod to become ready..."
-          kubectl wait --namespace ingress-nginx \
-            --for=condition=ready pod \
-            --selector=app.kubernetes.io/component=controller \
-            --timeout=180s || {
-              echo "❌ Controller not ready — dumping diagnostics:"
-              kubectl get pods -n ingress-nginx -o wide
-              kubectl describe pod -n ingress-nginx -l app.kubernetes.io/component=controller
-              exit 1
-            }
-
-      # ── Deploy & verify all manifests ────────────────────────────────────────
-      - name: Test Apply App Manifests to Kind
-        run: |
-          # 1. Create namespace (idempotent)
-          kubectl create namespace audiopro --dry-run=client -o yaml | kubectl apply -f -
-
-          # 2. Create the single audiopro-secrets Secret used by all manifests
           kubectl create secret generic audiopro-secrets \
-            --namespace=audiopro \
-            --from-env-file=backend/.env \
+            --namespace=${{ env.K8S_NS }} \
+            --from-literal=USER_SERVICE_PORT="5001" \
+            --from-literal=PRODUCT_SERVICE_PORT="5002" \
+            --from-literal=ORDER_SERVICE_PORT="5003" \
+            --from-literal=MCP_SERVICE_PORT="5004" \
+            --from-literal=CART_SERVICE_PORT="5005" \
+            --from-literal=PAYMENT_SERVICE_PORT="5006" \
+            --from-literal=MONGO_URI="${{ secrets.MONGO_URI }}" \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal=JWT_EXPIRES_IN="7d" \
+            --from-literal=CONTACT_EMAIL_USER="${{ secrets.CONTACT_EMAIL_USER }}" \
+            --from-literal=CONTACT_EMAIL_PASS="${{ secrets.CONTACT_EMAIL_PASS }}" \
+            --from-literal=SENDGRID_API_KEY="${{ secrets.SENDGRID_API_KEY }}" \
+            --from-literal=SENDGRID_FROM_EMAIL="${{ secrets.SENDGRID_FROM_EMAIL }}" \
+            --from-literal=STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
+            --from-literal=VITE_STRIPE_KEY="${{ secrets.VITE_STRIPE_KEY }}" \
+            --from-literal=TWILIO_ACCOUNT_SID="${{ secrets.TWILIO_ACCOUNT_SID }}" \
+            --from-literal=TWILIO_AUTH_TOKEN="${{ secrets.TWILIO_AUTH_TOKEN }}" \
+            --from-literal=TWILIO_FROM_NUMBER="${{ secrets.TWILIO_FROM_NUMBER }}" \
+            --from-literal=OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+            --from-literal=FRONTEND_URL="http://frontend:5173" \
+            --from-literal=VITE_USER_API_URL="http://user-service:5001" \
+            --from-literal=VITE_PRODUCT_API_URL="http://product-service:5002" \
+            --from-literal=VITE_ORDER_API_URL="http://order-service:5003" \
+            --from-literal=VITE_CART_API_URL="http://cart-service:5005" \
+            --from-literal=VITE_PAYMENT_API_URL="http://payment-service:5006" \
+            --from-literal=VITE_MCP_API_URL="http://mcp-service:5004" \
+            --from-literal=ORDER_SERVICE_URL="http://order-service:5003" \
+            --from-literal=CART_SERVICE_URL="http://cart-service:5005" \
+            --from-literal=PRODUCT_SERVICE_URL="http://product-service:5002" \
+            --from-literal=REDIS_URL="redis://redis:6379" \
+            --from-literal=KAFKA_BROKER="kafka:9092" \
+            --from-literal=KAFKAJS_NO_PARTITIONER_WARNING="1" \
             --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ audiopro-secrets synced."
 
-          # 3. Apply local storage mock patch if present
-          if [ -f k8s/local-storage-alias.yaml ]; then kubectl apply -f k8s/local-storage-alias.yaml; fi
+      # ── Apply all EKS manifests (01-secret.yaml is skipped — handled above) ─
+      - name: Apply EKS manifests (01 through 12)
+        run: |
+          echo "📋 Applying manifests from k8s/eks/ ..."
+          for f in k8s/eks/[0-9]*.yaml; do
+            # Skip the static secret template — we manage secrets via GitHub Secrets above
+            [[ "$(basename $f)" == "01-secret.yaml" ]] && continue
+            echo "  → applying $(basename $f)"
+            kubectl apply -f "$f"
+          done
+          echo "✅ All manifests applied."
 
-          # 4. Apply all k8s manifests (ordered by filename prefix 00–13)
-          kubectl apply -f k8s/
+      # ── Trigger rolling restarts to pick up new ECR images ──────────────────
+      # imagePullPolicy: Always means restarting the deployment pulls the new :latest
+      - name: Rolling restart all deployments
+        run: |
+          kubectl rollout restart \
+            deployment/redis \
+            deployment/kafka \
+            deployment/user-service \
+            deployment/product-service \
+            deployment/order-service \
+            deployment/cart-service \
+            deployment/payment-service \
+            deployment/mcp-service \
+            deployment/frontend \
+            -n ${{ env.K8S_NS }}
 
-          # 5. Wait for infrastructure pods first
-          echo "⏳ Waiting for infrastructure pods..."
-          kubectl rollout status deployment/redis -n audiopro --timeout=90s
-          kubectl rollout status deployment/kafka -n audiopro --timeout=120s
+      # ── Wait for all rollouts to complete ────────────────────────────────────
+      - name: Wait for infrastructure rollouts
+        run: |
+          echo "⏳ Waiting for Redis & Kafka..."
+          kubectl rollout status deployment/redis -n ${{ env.K8S_NS }} --timeout=90s
+          kubectl rollout status deployment/kafka -n ${{ env.K8S_NS }} --timeout=180s
 
-          # 6. Wait for backend microservices
-          echo "⏳ Waiting for backend microservices..."
-          kubectl rollout status deployment/user-service    -n audiopro --timeout=180s
-          kubectl rollout status deployment/product-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/order-service   -n audiopro --timeout=180s
-          kubectl rollout status deployment/cart-service    -n audiopro --timeout=180s
-          kubectl rollout status deployment/payment-service -n audiopro --timeout=180s
-          kubectl rollout status deployment/mcp-service     -n audiopro --timeout=180s
+      - name: Wait for backend microservice rollouts
+        run: |
+          echo "⏳ Waiting for backend services..."
+          kubectl rollout status deployment/user-service    -n ${{ env.K8S_NS }} --timeout=180s
+          kubectl rollout status deployment/product-service -n ${{ env.K8S_NS }} --timeout=180s
+          kubectl rollout status deployment/order-service   -n ${{ env.K8S_NS }} --timeout=180s
+          kubectl rollout status deployment/cart-service    -n ${{ env.K8S_NS }} --timeout=180s
+          kubectl rollout status deployment/payment-service -n ${{ env.K8S_NS }} --timeout=180s
+          kubectl rollout status deployment/mcp-service     -n ${{ env.K8S_NS }} --timeout=180s
 
-          # 7. Wait for frontend (Vite dev server takes longer)
+      - name: Wait for frontend rollout
+        run: |
           echo "⏳ Waiting for frontend..."
-          kubectl rollout status deployment/frontend -n audiopro --timeout=600s
+          kubectl rollout status deployment/frontend -n ${{ env.K8S_NS }} --timeout=300s
 
-          echo "✅ All deployments healthy!"
+      # ── Print final cluster state ─────────────────────────────────────────────
+      - name: Show cluster state
+        run: |
+          echo ""
+          echo "═══ Pods ════════════════════════════════════════════════════"
+          kubectl get pods -n ${{ env.K8S_NS }} -o wide
+          echo ""
+          echo "═══ Services ════════════════════════════════════════════════"
+          kubectl get svc -n ${{ env.K8S_NS }}
+          echo ""
+          echo "═══ Ingress ═════════════════════════════════════════════════"
+          kubectl get ingress -n ${{ env.K8S_NS }}
+          echo ""
+          INGRESS_HOST=$(kubectl get ingress audiopro-ingress -n ${{ env.K8S_NS }} \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "<pending>")
+          echo "🌐 Public URL: http://${INGRESS_HOST}"
 
-      # ── Debug diagnostics on any failure ────────────────────────────────────
-      - name: Debug Cluster on Failure
+      # ── Debug diagnostics on any failure ─────────────────────────────────────
+      - name: Debug cluster on failure
         if: failure()
         run: |
-          echo "=== KUBERNETES PODS STATUS ==="
-          kubectl get pods -n audiopro -o wide || true
+          echo "=== POD STATUS ==="
+          kubectl get pods -n ${{ env.K8S_NS }} -o wide || true
 
-          echo "=== EVENTS (sorted by time) ==="
-          kubectl get events -n audiopro --sort-by='.lastTimestamp' | tail -40 || true
+          echo "=== EVENTS (latest) ==="
+          kubectl get events -n ${{ env.K8S_NS }} --sort-by='.lastTimestamp' | tail -40 || true
 
           echo "=== KAFKA LOGS ==="
-          kubectl logs -n audiopro deployment/kafka --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/kafka --tail=50 || true
 
           echo "=== REDIS LOGS ==="
-          kubectl logs -n audiopro deployment/redis --tail=30 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/redis --tail=30 || true
 
           echo "=== USER SERVICE LOGS ==="
-          kubectl logs -n audiopro deployment/user-service --all-containers=true --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/user-service --all-containers=true --tail=50 || true
 
           echo "=== PRODUCT SERVICE LOGS ==="
-          kubectl logs -n audiopro deployment/product-service --all-containers=true --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/product-service --all-containers=true --tail=50 || true
 
           echo "=== ORDER SERVICE LOGS ==="
-          kubectl logs -n audiopro deployment/order-service --all-containers=true --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/order-service --all-containers=true --tail=50 || true
 
           echo "=== CART SERVICE LOGS ==="
-          kubectl logs -n audiopro deployment/cart-service --all-containers=true --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/cart-service --all-containers=true --tail=50 || true
 
           echo "=== PAYMENT SERVICE LOGS ==="
-          kubectl logs -n audiopro deployment/payment-service --all-containers=true --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/payment-service --all-containers=true --tail=50 || true
 
           echo "=== MCP SERVICE LOGS ==="
-          kubectl logs -n audiopro deployment/mcp-service --all-containers=true --tail=50 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/mcp-service --all-containers=true --tail=50 || true
 
           echo "=== FRONTEND LOGS ==="
-          kubectl logs -n audiopro deployment/frontend --all-containers=true --tail=100 || true
+          kubectl logs -n ${{ env.K8S_NS }} deployment/frontend --all-containers=true --tail=100 || true
 
           echo "=== ALL POD DESCRIPTIONS ==="
-          kubectl describe pods -n audiopro || true
+          kubectl describe pods -n ${{ env.K8S_NS }} || true

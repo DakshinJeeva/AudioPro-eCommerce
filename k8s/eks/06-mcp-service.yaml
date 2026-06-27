@@ -1,0 +1,80 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# k8s/eks/06-mcp-service.yaml
+# Deployment + ClusterIP Service for the MCP/AI Chat microservice (port 5004).
+# EKS variant: ECR image, 2 replicas.
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-service
+  namespace: audiopro
+  labels:
+    app: mcp-service
+    tier: backend
+    project: audiopro-ecommerce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: mcp-service
+        tier: backend
+    spec:
+      containers:
+        - name: mcp-service
+          image: 227037612486.dkr.ecr.ap-south-2.amazonaws.com/audiopro/mcp-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5004
+          envFrom:
+            - secretRef:
+                name: audiopro-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5004
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5004
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-service
+  namespace: audiopro
+  labels:
+    app: mcp-service
+    project: audiopro-ecommerce
+spec:
+  selector:
+    app: mcp-service
+  ports:
+    - name: http
+      port: 5004
+      targetPort: 5004
+      protocol: TCP
+  type: ClusterIP

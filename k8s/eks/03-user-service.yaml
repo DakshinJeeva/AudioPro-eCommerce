@@ -1,0 +1,82 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# k8s/eks/03-user-service.yaml
+# Deployment + ClusterIP Service for the User microservice (port 5001).
+# Image pulled from ECR — imagePullPolicy: Always ensures fresh images on rollout.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: audiopro
+  labels:
+    app: user-service
+    tier: backend
+    project: audiopro-ecommerce
+spec:
+  replicas: 2                       # 2 pods for HA across AZs
+  selector:
+    matchLabels:
+      app: user-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: user-service
+        tier: backend
+    spec:
+      containers:
+        - name: user-service
+          image: 227037612486.dkr.ecr.ap-south-2.amazonaws.com/audiopro/user-service:latest
+          imagePullPolicy: Always   # Always pull — ensures new ECR pushes are picked up
+          ports:
+            - containerPort: 5001
+          envFrom:
+            - secretRef:
+                name: audiopro-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+# ── ClusterIP Service ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: audiopro
+  labels:
+    app: user-service
+    project: audiopro-ecommerce
+spec:
+  selector:
+    app: user-service
+  ports:
+    - name: http
+      port: 5001
+      targetPort: 5001
+      protocol: TCP
+  type: ClusterIP

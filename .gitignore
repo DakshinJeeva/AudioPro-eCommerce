@@ -4,4 +4,5 @@ minikube
 *.exe
 *.deb
 *.rpm
-k8s/01-secret.yaml
+k8s/kind/01-secret.yaml
+k8s/eks/01-secret.yaml

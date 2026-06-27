@@ -1,0 +1,40 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# k8s/eks/02-pvc.yaml
+# PersistentVolumeClaims for EKS using the EBS CSI driver.
+# StorageClass "gp2" is the default EKS EBS provisioner.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Product uploads PVC ──────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: audiopro
+  labels:
+    app: product-service
+    project: audiopro-ecommerce
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp2          # AWS EBS gp2 — provisioned automatically by EBS CSI
+  resources:
+    requests:
+      storage: 5Gi               # Larger than local — production uploads need more space
+
+---
+# ── Redis data PVC ────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: audiopro
+  labels:
+    app: redis
+    project: audiopro-ecommerce
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp2
+  resources:
+    requests:
+      storage: 2Gi

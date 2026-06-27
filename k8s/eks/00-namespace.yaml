@@ -1,0 +1,12 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# k8s/eks/00-namespace.yaml
+# All AudioPro resources live in the "audiopro" namespace.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: audiopro
+  labels:
+    app.kubernetes.io/managed-by: kubectl
+    project: audiopro-ecommerce
+    environment: production

@@ -1,0 +1,90 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# k8s/eks/11-payment-service.yaml
+# Deployment + ClusterIP Service for the Payment microservice (port 5006).
+# EKS variant: ECR image, Stripe integration, Kafka producer, 2 replicas.
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: audiopro
+  labels:
+    app: payment-service
+    tier: backend
+    project: audiopro-ecommerce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        tier: backend
+    spec:
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z kafka 9092; do
+                echo "Waiting for Kafka..."; sleep 5;
+              done
+      containers:
+        - name: payment-service
+          image: 227037612486.dkr.ecr.ap-south-2.amazonaws.com/audiopro/payment-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5006
+          envFrom:
+            - secretRef:
+                name: audiopro-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5006
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5006
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: audiopro
+  labels:
+    app: payment-service
+    project: audiopro-ecommerce
+spec:
+  selector:
+    app: payment-service
+  ports:
+    - name: http
+      port: 5006
+      targetPort: 5006
+      protocol: TCP
+  type: ClusterIP
